@@ -82,4 +82,4 @@ No new server errors were printed during these requests. Optional `OPENAI_API_KE
 - There is no live account, database, or payment. Consent is stored in the browser.
 - Organization, school, and provider dashboards are not in 1.0.
 - Onboarding was not clicked through all 11 steps in this pass. The route and step list are present.
-- Vercel CLI is logged out and this folder has no git remote, so a live deployment URL was not produced in this session.
+- Vercel project `healthtrack-demo` exists on team `edxnoels-projects` (`prj_z1L9DNBbM8RwkKLgdqzf8NuQqy3T`) and has never been deployed (`live: false`). This folder has no git remote. The Vercel CLI is logged out, so a deployment URL was not created. An earlier anonymous local build failed on Windows with `EPERM` while creating serverless symlinks. A remote build after `npx vercel login` avoids that path.
