@@ -1,0 +1,88 @@
+import type { BehaviorCandidate } from "@/lib/types";
+
+export const BEHAVIOR_LIBRARY: BehaviorCandidate[] = [
+  {
+    id: "normal-bedtime",
+    title: "Aim for your normal bedtime",
+    instruction: "Get to bed by 10:30 pm tonight — your usual time.",
+    whyShort: "Sleep timing is the highest-leverage recovery lever in the current pattern.",
+    pillar: "sleep",
+    burden: 0.25,
+    durationMinutes: 0,
+    tags: ["sleep", "recovery", "low-risk"],
+  },
+  {
+    id: "evening-walk",
+    title: "Walk 20 minutes after dinner",
+    instruction: "Take a 20-minute walk within an hour after dinner.",
+    whyShort: "On your walking days, overnight recovery has tended to look better.",
+    pillar: "activity",
+    burden: 0.35,
+    durationMinutes: 20,
+    tags: ["activity", "glucose", "recovery", "low-risk"],
+  },
+  {
+    id: "earlier-dinner",
+    title: "Finish dinner by 7:30 pm",
+    instruction: "Eat the last meal by 7:30 pm so there is a longer gap before sleep.",
+    whyShort: "Later meals have been associated with lower overnight recovery for you.",
+    pillar: "nutrition",
+    burden: 0.4,
+    durationMinutes: 0,
+    tags: ["nutrition", "sleep", "low-risk"],
+  },
+  {
+    id: "morning-light",
+    title: "Get 10 minutes of morning light",
+    instruction: "Step outside within an hour of waking for about 10 minutes.",
+    whyShort: "Light timing is a low-risk support for sleep pressure and circadian rhythm.",
+    pillar: "sleep",
+    burden: 0.2,
+    durationMinutes: 10,
+    tags: ["sleep", "circadian", "low-risk"],
+  },
+  {
+    id: "screens-off",
+    title: "Screens off 30 minutes before bed",
+    instruction: "Park phones and laptops 30 minutes before your target bedtime.",
+    whyShort: "A short wind-down window supports the bedtime you are protecting tonight.",
+    pillar: "sleep",
+    burden: 0.3,
+    durationMinutes: 30,
+    tags: ["sleep", "low-risk"],
+  },
+  {
+    id: "protein-breakfast",
+    title: "Include protein at breakfast",
+    instruction: "Eat a protein-containing breakfast within 90 minutes of waking.",
+    whyShort: "A steadier morning meal is a low-risk nutrition lever while labs trend.",
+    pillar: "nutrition",
+    burden: 0.25,
+    durationMinutes: 15,
+    tags: ["nutrition", "low-risk"],
+  },
+  {
+    id: "box-breathing",
+    title: "Five minutes of slow breathing",
+    instruction: "Sit for five minutes of 4-4-4-4 breathing this afternoon.",
+    whyShort: "A brief downshift is feasible when stress is running above your baseline.",
+    pillar: "recovery",
+    burden: 0.15,
+    durationMinutes: 5,
+    tags: ["stress", "recovery", "low-risk"],
+  },
+  {
+    id: "mobility-10",
+    title: "Ten minutes of easy mobility",
+    instruction: "Do a 10-minute easy stretch or walk-in-place session before lunch.",
+    whyShort: "Light movement is a low-burden way to raise activity without loading recovery.",
+    pillar: "activity",
+    burden: 0.2,
+    durationMinutes: 10,
+    tags: ["activity", "recovery", "low-risk"],
+  },
+];
+
+export function getBehavior(id: string): BehaviorCandidate | undefined {
+  return BEHAVIOR_LIBRARY.find((item) => item.id === id);
+}

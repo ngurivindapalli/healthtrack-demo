@@ -32,6 +32,12 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# working PDF renders and extracts
+/docs/blueprint-pages/
+/docs/_pdf_extract.txt
+/docs/_pdf_clean.txt
 
 # vercel
 .vercel
@@ -39,3 +45,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

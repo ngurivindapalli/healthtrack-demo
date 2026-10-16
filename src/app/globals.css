@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f1ece1;
+  --paper-2: #e6dfd1;
+  --surface: #faf7f0;
+  --ink: #14241c;
+  --ink-soft: #3c4e45;
+  --muted: #66756c;
+  --line: #d5ccbc;
+  --pine: #1b5840;
+  --pine-2: #123d2c;
+  --sage: #7c9a80;
+  --one: #c45c24;
+  --one-ink: #7a2e0e;
+  --one-soft: #f6e6d7;
+  --thrive: #1f6b4a;
+  --stable: #3d5c5e;
+  --shifting: #a85c12;
+  --attention: #8c3535;
+  --info: #35586b;
+  --focus: #1b5840;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-pine: var(--pine);
+  --color-pine-2: var(--pine-2);
+  --color-sage: var(--sage);
+  --color-one: var(--one);
+  --color-one-ink: var(--one-ink);
+  --color-one-soft: var(--one-soft);
+  --color-thrive: var(--thrive);
+  --color-stable: var(--stable);
+  --color-shifting: var(--shifting);
+  --color-attention: var(--attention);
+  --color-info: var(--info);
+  --font-sans: var(--font-source);
+  --font-display: var(--font-fraunces);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--paper);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-source), "Segoe UI", sans-serif;
+  min-height: 100%;
+}
+
+::selection {
+  background: #d7ecdf;
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.hairline {
+  box-shadow: inset 0 0 0 1px var(--line);
 }

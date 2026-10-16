@@ -1,69 +1,90 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useRouter } from "next/navigation";
+import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui";
+import { useDemo } from "@/lib/store";
+
+export default function EntryPage() {
+  const router = useRouter();
+  const { enterRam, startCustom } = useDemo();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="min-h-full bg-paper">
+      <div className="mx-auto grid min-h-dvh max-w-5xl gap-10 px-5 py-10 md:grid-cols-[1.15fr_0.85fr] md:items-center md:px-8">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pine">
+            HealthTrack 1.0 · interactive demo
+          </p>
+          <h1 className="display mt-4 max-w-xl text-4xl leading-tight text-ink md:text-5xl">
+            Know your normal. Then do one thing about it.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+          <p className="mt-5 max-w-lg text-base leading-7 text-ink-soft">
+            HealthTrack is a personal wellness guide. It learns what is usual
+            for one person from sleep, recovery, activity, and occasional labs,
+            then names a single low-risk behavior for today.
+          </p>
+          <p className="mt-4 max-w-lg text-sm leading-6 text-ink-soft">
+            It is meant for someone tracking their own wellness, not a clinic
+            visit and not an employer report. The product does not diagnose.
+            A shift away from your baseline is a pattern to act on, not a
+            medical finding.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Button
+              className="px-5 py-2.5"
+              onClick={() => {
+                enterRam();
+                router.push("/today");
+              }}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Open Ram’s Today
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button
+              variant="secondary"
+              className="px-5 py-2.5"
+              onClick={() => {
+                startCustom();
+                router.push("/onboarding");
+              }}
             >
-              Learning
-            </a>{" "}
-            center.
+              Start with an empty profile
+            </Button>
+          </div>
+          <p className="mt-5 max-w-lg text-xs leading-5 text-muted">
+            Ram Chen’s sample day is 16 October 2026: about six weeks of
+            simulated Oura and Apple Health, two parsed lab reports, and a
+            four-day move away from his own range. Pulse Watch can import a
+            new evening batch into those same records. Wearables, lab parsing,
+            and coach wording are simulated. No account or device is required.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        <aside className="rounded-3xl bg-pine px-6 py-7 text-surface shadow-[0_20px_50px_rgba(20,36,28,0.12)]">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-surface/70">
+            Ram · 16 October · sample
+          </p>
+          <p className="display mt-3 text-3xl">Shifting</p>
+          <p className="mt-2 text-sm leading-6 text-surface/80">
+            Sleep and recovery have sat below his usual range for four days.
+            The status is calculated from his records. It is not a score and
+            not a diagnosis.
+          </p>
+          <div className="mt-6 rounded-2xl bg-surface px-4 py-4 text-ink">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-one">
+              Today’s ONE
+            </p>
+            <p className="mt-2 text-base font-medium leading-6">
+              Get to bed by 10:30 pm tonight, his usual time.
+            </p>
+            <p className="mt-2 text-sm text-ink-soft">
+              The post-dinner walk stays as Repeat ONE. His own evenings
+              already show a link with next-morning HRV.
+            </p>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
