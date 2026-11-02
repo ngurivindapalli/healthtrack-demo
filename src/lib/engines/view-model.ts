@@ -1,13 +1,11 @@
 import { BEHAVIOR_LIBRARY, getBehavior } from "@/lib/behaviors";
-import { RAM_OBSERVATIONS, observationsFromProfile } from "@/lib/data/observations";
 import { allAssociations } from "@/lib/engines/associations";
 import { snapshotMetric } from "@/lib/engines/baseline";
 import { pickRepeatOne, rankTodayOne } from "@/lib/engines/behaviors";
-import { syncRecencyHours, watchFreshness, type FreshnessView } from "@/lib/engines/freshness";
+import { companionFreshness, syncRecencyHours, type FreshnessView } from "@/lib/engines/freshness";
 import { computeWellnessStatus } from "@/lib/engines/status";
 import { METRIC_LIST, METRICS, PILLAR_COPY } from "@/lib/metrics";
 import { DEMO_NOW, DEMO_TODAY } from "@/lib/metrics";
-import { mergeWatchImports } from "@/lib/services/wearable";
 import type {
   AssociationResult,
   DailyObservation,
@@ -40,23 +38,12 @@ export interface AppModel {
   associations: AssociationResult[];
   trends: TrendItem[];
   coldStart: boolean;
-  sampleData: true;
+  sampleData: boolean;
   freshness: FreshnessView;
 }
 
 function observationsFor(state: DemoState): DailyObservation[] {
-  const base =
-    state.mode === "ram"
-      ? RAM_OBSERVATIONS
-      : observationsFromProfile(
-          state.profile,
-          state.watchImports.length === 0 &&
-            state.sources.some(
-              (source) => source.connected && source.kind !== "manual" && source.kind !== "watch",
-            ),
-        );
-  const merged = mergeWatchImports(base, state.watchImports);
-  return overlayToday(merged, state);
+  return overlayToday(state.persistedObservations ?? [], state);
 }
 
 function overlayToday(
@@ -88,12 +75,16 @@ function pillarDirection(deviation: number): string {
 }
 
 export function buildAppModel(state: DemoState): AppModel {
-  const asOf = DEMO_TODAY;
+  const asOf = state.dataAsOf || DEMO_TODAY;
+  const nowIso = state.nowIso || DEMO_NOW;
   const observations = observationsFor(state);
-  const connectedCount = state.sources.filter(
-    (source) =>
-      source.connected && source.kind !== "manual",
-  ).length;
+  const activeDevices = (state.devices ?? []).filter((device) => device.status === "active");
+  const lastSyncAt = activeDevices
+    .map((device) => device.lastSyncAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
+  const connectedCount = activeDevices.length;
   const coldStart = observations.length < 8;
 
   const status = computeWellnessStatus({
@@ -125,7 +116,7 @@ export function buildAppModel(state: DemoState): AppModel {
     labs: state.labReports,
     context: state.context,
     sourcesConnected: connectedCount,
-    recencyHours: syncRecencyHours(state.watch.lastSyncAt, DEMO_NOW),
+    recencyHours: syncRecencyHours(lastSyncAt, nowIso),
   });
 
   const associations = observations.length ? allAssociations(observations) : [];
@@ -147,8 +138,8 @@ export function buildAppModel(state: DemoState): AppModel {
     ...rankCtx,
     excludeIds: repeatOne ? [repeatOne.candidate.id] : [],
   });
-  let todayOne = ranked[0] ?? null;
-  if (state.todayCommitment?.replacedWithId) {
+  let todayOne = observations.length === 0 ? null : ranked[0] ?? null;
+  if (observations.length > 0 && state.todayCommitment?.replacedWithId) {
     const replaced = BEHAVIOR_LIBRARY.find(
       (item) => item.id === state.todayCommitment?.replacedWithId,
     );
@@ -195,7 +186,7 @@ export function buildAppModel(state: DemoState): AppModel {
         directionLabel: a1c ? "HbA1c trending vs prior draw" : "No labs on file",
         summary: a1c
           ? `Most recent HbA1c ${a1c.value}% (${latest.collectedAt}). ${a1c.note}`
-          : "Upload a report to add episodic lab context. Parsing in this demo is simulated.",
+          : "No lab report is stored. Lab upload is not parsed in this version.",
         deviation: 0,
         snapshots: [],
       };
@@ -205,7 +196,7 @@ export function buildAppModel(state: DemoState): AppModel {
       id,
       title: PILLAR_COPY[id].title,
       question: PILLAR_COPY[id].question,
-      directionLabel: pillarDirection(domain?.deviation ?? 0),
+      directionLabel: observations.length === 0 ? "No measurements yet" : pillarDirection(domain?.deviation ?? 0),
       summary:
         domain?.drivers
           .filter((d) => d.percentVsBaseline != null)
@@ -257,8 +248,8 @@ export function buildAppModel(state: DemoState): AppModel {
     associations,
     trends,
     coldStart,
-    sampleData: true,
-    freshness: watchFreshness(state.watch, DEMO_NOW),
+    sampleData: false,
+    freshness: companionFreshness(activeDevices.length > 0, lastSyncAt, nowIso),
   };
 }
 

@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ScoringGoalsFields } from "@/components/scoring-goals-fields";
 import { Button, Card, Field, Select, TextArea, TextInput } from "@/components/ui";
-import { useDemo } from "@/lib/store";
+import { flushWorkspace, useDemo } from "@/lib/store";
 import type { Sex } from "@/lib/types";
 
 const STEPS = [
@@ -17,6 +19,9 @@ const STEPS = [
   "Nutrition & recovery",
   "Coaching",
   "Learning your baseline",
+  "Priorities",
+  "Starting baselines",
+  "Cycle",
 ];
 
 const GOAL_OPTIONS = [
@@ -29,17 +34,72 @@ const GOAL_OPTIONS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { state, patchProfile, patchState, setOnboardingStep, completeOnboarding, toggleSource, enterRam } =
-    useDemo();
-  const step = Math.min(state.onboardingStep, 10);
+  const {
+    state,
+    patchProfile,
+    patchState,
+    setOnboardingStep,
+    completeOnboarding,
+    ready,
+    signedIn,
+  } = useDemo();
+  const step = Math.min(state.onboardingStep, STEPS.length - 1);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [cycleOptIn, setCycleOptIn] = useState(false);
+  const [sleepDraft, setSleepDraft] = useState<string | undefined>(undefined);
 
-  function next() {
-    if (step >= 10) {
-      completeOnboarding();
-      router.push("/today");
+  useEffect(() => {
+    if (!ready) return;
+    if (!signedIn) router.replace("/sign-in");
+  }, [ready, signedIn, router]);
+
+  async function next(skip = false) {
+    setError("");
+    if (step === 2 && !state.consents.wearables) {
+      setError("Consent to store companion-app measurements is required before continuing.");
       return;
     }
-    setOnboardingStep(step + 1);
+    if (step === 3) {
+      if (!state.profile.displayName.trim()) {
+        setError("Enter the name HealthTrack should use.");
+        return;
+      }
+      if (state.profile.age < 13 || state.profile.age > 120) {
+        setError("Age needs to be between 13 and 120.");
+        return;
+      }
+    }
+    if (step === 12 && !skip && sleepDraft === undefined && state.scoringGoals.sleepHoursGoal == null) {
+      patchState({ scoringGoals: { ...state.scoringGoals, sleepHoursGoal: 8 } });
+    }
+    setSaving(true);
+    if (step === 13 && cycleOptIn && !skip) {
+      const response = await fetch("/api/v1/me/cycle", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: true, variability: "unsure" }),
+      });
+      if (!response.ok) {
+        setSaving(false);
+        setError("Cycle preference could not be saved. You can skip this step.");
+        return;
+      }
+    }
+    if (step >= STEPS.length - 1) completeOnboarding();
+    else setOnboardingStep(step + 1);
+    try {
+      const saved = await flushWorkspace();
+      if (!saved) {
+        setError("This step could not be saved. Check your connection and try again.");
+        return;
+      }
+      if (step >= STEPS.length - 1) router.push("/today");
+    } catch {
+      setError("This step could not be saved. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function back() {
@@ -55,32 +115,44 @@ export default function OnboardingPage() {
       <div className="mx-auto max-w-xl">
         <div className="mb-6 flex items-center justify-between gap-3">
           <p className="display text-xl text-pine">HealthTrack</p>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              enterRam();
-              router.push("/today");
-            }}
-          >
-            Skip with Ram’s sample
+          <Button variant="ghost" onClick={() => router.push("/")}>
+            Exit
           </Button>
         </div>
-        <p className="text-xs uppercase tracking-[0.14em] text-muted">
+        <p className="text-sm text-muted">
           Step {step + 1} of {STEPS.length}
+          {step > 0 && step < 10 ? " · your answers stay on this account if you leave" : ""}
         </p>
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-paper-2">
+        <div
+          className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper-2"
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={STEPS.length}
+          aria-valuenow={step + 1}
+          aria-label="Onboarding progress"
+        >
           <div
-            className="h-full bg-pine transition-all"
+            className="h-full bg-ink transition-[width] duration-300"
             style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
           />
         </div>
         <h1 className="display mt-6 text-3xl">{STEPS[step]}</h1>
         <Card className="mt-5">{renderStep()}</Card>
-        <div className="mt-5 flex justify-between">
-          <Button variant="secondary" onClick={back}>
+        {error ? <p className="mt-4 text-sm text-attention" role="alert">{error}</p> : null}
+        <div className="mt-5 flex justify-between gap-3">
+          <Button variant="secondary" onClick={back} disabled={saving}>
             Back
           </Button>
-          <Button onClick={next}>{step >= 10 ? "Open Today" : "Continue"}</Button>
+          <div className="flex gap-2">
+            {[4, 5, 7, 8, 11, 12, 13].includes(step) ? (
+              <Button variant="ghost" onClick={() => void next(true)} disabled={saving}>
+                Skip
+              </Button>
+            ) : null}
+            <Button onClick={() => void next(false)} disabled={saving}>
+              {saving ? "Saving…" : step >= STEPS.length - 1 ? "Open Today" : "Continue"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -101,30 +173,34 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-3 text-sm leading-6 text-ink-soft">
             <p>
-              HealthTrack learns <em>your</em> normal and helps you improve one
-              behavior at a time.
+              HealthTrack learns your normal from sleep, recovery, activity, and
+              occasional labs, then names one low-risk thing to do today.
             </p>
             <p>
-              Detection without behavior change is just earlier anxiety. This
-              onboarding collects only what the 1.0 product needs: goals,
-              consent, a thin profile, typical-day context, and optional data
-              sources.
+              The next screens ask for a name, a few goals, and optional context.
+              You can skip anything that is not required. Nothing here is a
+              diagnosis. Answers are saved to your account.
             </p>
           </div>
         );
       case 1:
         return (
           <div className="space-y-3">
-            <p className="text-sm text-ink-soft">Choose one or more priorities.</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-sm text-ink-soft">
+              Choose what you want Today to pay attention to. These are personal
+              priorities, not medical targets. Recovery keeps bedtime higher in
+              the ranking.
+            </p>
+            <div className="grid gap-2">
               {GOAL_OPTIONS.map((goal) => {
                 const on = state.profile.goals.includes(goal);
                 return (
                   <button
                     key={goal}
                     type="button"
+                    aria-pressed={on}
                     onClick={() => toggleGoal(goal)}
-                    className={`rounded-full px-3 py-1.5 text-sm ${on ? "bg-pine text-surface" : "bg-paper-2 text-ink"}`}
+                    className={`rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors ${on ? "bg-ink text-surface" : "bg-paper text-ink hairline"}`}
                   >
                     {goal}
                   </button>
@@ -136,15 +212,14 @@ export default function OnboardingPage() {
       case 2:
         return (
           <div className="space-y-3 text-sm">
-            <p className="text-ink-soft">
-              This demo stores choices in your browser only. There is no live
-              Supabase account.
+            <p className="leading-6 text-ink-soft">
+              Profile answers and measurements are stored for this account on the server. This site does not read Apple Health. Companion measurements are stored only if you allow them below. You can delete the data later from Profile.
             </p>
             {(
               [
-                ["wearables", "Wearable and health-data access (simulated Junction)"],
-                ["labs", "Lab report storage and parsing"],
-                ["coaching", "AI Health Coach explanations"],
+                ["wearables", "Companion app measurements stored on this account"],
+                ["labs", "Lab report storage, if parsing is added later"],
+                ["coaching", "Coaching explanations, including optional AI wording"],
                 ["productAnalytics", "Product analytics (optional)"],
               ] as const
             ).map(([key, label]) => (
@@ -208,6 +283,19 @@ export default function OnboardingPage() {
                 />
               </Field>
             </div>
+            <Field label="Time zone" hint="Used to place measurements on your local calendar day.">
+              <TextInput
+                value={state.profile.timezone}
+                onChange={(e) => patchProfile({ timezone: e.target.value })}
+              />
+            </Field>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => patchProfile({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" })}
+            >
+              Use this device’s time zone
+            </Button>
           </div>
         );
       case 4:
@@ -290,30 +378,22 @@ export default function OnboardingPage() {
         );
       case 6:
         return (
-          <div className="space-y-3">
-            <p className="text-sm text-ink-soft">
-              Junction connections are simulated. Connecting a source loads a labeled sample stream so Today has something to learn from.
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-ink-soft">
+              Health measurements come from the companion mobile app after you pair it from Devices. This website does not read Apple Health, and the mobile app is not available in this build. You can finish onboarding now and connect later.
             </p>
-            {state.sources
-              .filter((source) => source.kind !== "manual")
-              .map((source) => (
-                <div key={source.kind} className="flex items-center justify-between rounded-xl bg-paper px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{source.label}</p>
-                    <p className="text-xs text-muted">{source.permissions.join(" · ")}</p>
-                  </div>
-                  <Button variant={source.connected ? "secondary" : "primary"} onClick={() => toggleSource(source.kind)}>
-                    {source.connected ? "Disconnect" : "Connect"}
-                  </Button>
-                </div>
-              ))}
+            <div className="rounded-2xl bg-paper p-4">
+              <p className="text-sm font-semibold">No device is connected</p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Pairing creates a short-lived code. The mobile app exchanges that code for a device credential. Until then, Today stays empty rather than showing sample readings.
+              </p>
+            </div>
           </div>
         );
       case 7:
         return (
           <div className="space-y-3 text-sm text-ink-soft">
-            <p>Lab upload is optional and can be deferred. You can add a sample parsed report later from Profile.</p>
-            <p>Live PDF OCR is not run in this demo. If you continue, Today will use wearables and check-ins only until you add labs.</p>
+            <p>Lab upload is optional and not connected to a parser in this version. Today uses stored companion measurements and the check-ins you enter.</p>
           </div>
         );
       case 8:
@@ -349,22 +429,116 @@ export default function OnboardingPage() {
                 checked={state.profile.notifications}
                 onChange={(e) => patchProfile({ notifications: e.target.checked })}
               />
-              Daily ONE reminder (demo setting only)
+              Daily reminder preference. Reminders are not sent in this version.
             </label>
           </div>
         );
-      default:
+      case 10:
         return (
           <div className="space-y-3 text-sm leading-6 text-ink-soft">
             <p>
-              Baseline confidence starts at <strong>Building</strong> until enough valid days accumulate. Peer and general references are used conservatively and labeled.
+              {state.profile.displayName || "You"} can keep going. The remaining steps are optional.
+              {state.profile.goals.length
+                ? ` Goals: ${state.profile.goals.join(", ")}.`
+                : " No goals selected yet — you can add them in Profile."}
             </p>
             <p>
-              On Today you will see My Wellness Status, compact pillar states, and at most one Today’s ONE. Repeat ONE appears only after personal evidence rules are met.
+              No companion app is connected yet. Today will show unavailable measurements until the mobile app uploads data. Check-ins you enter stay on your account.
             </p>
             <p>HealthTrack explains wellness patterns. It does not diagnose.</p>
           </div>
         );
+      case 11:
+        return (
+          <div className="space-y-3">
+            <p className="text-sm leading-6 text-ink-soft">
+              Rank the goals you already chose. Order is a personal preference. It does not change the Wellness Tracker weights.
+            </p>
+            {state.profile.goals.length === 0 ? (
+              <div className="grid gap-2">
+                {GOAL_OPTIONS.map((goal) => (
+                  <button key={goal} type="button" className="rounded-2xl bg-paper px-4 py-3 text-left text-sm font-medium hairline" onClick={() => patchProfile({ goals: [...state.profile.goals, goal] })}>
+                    Add {goal}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <ol className="space-y-2">
+                {state.profile.goals.map((goal, index) => (
+                  <li key={goal} className="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3 py-2 text-sm">
+                    <span>{index + 1}. {goal}</span>
+                    <span className="flex gap-1">
+                      <Button variant="ghost" onClick={() => moveGoal(index, -1)} disabled={index === 0}>Up</Button>
+                      <Button variant="ghost" onClick={() => moveGoal(index, 1)} disabled={index === state.profile.goals.length - 1}>Down</Button>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        );
+      case 12:
+        return (
+          <div className="grid gap-3">
+            <p className="text-sm leading-6 text-ink-soft">
+              Optional notes about where you are starting. These are not measurements and they do not create a Wellness Score.
+            </p>
+            <Field label="Sleep">
+              <TextInput value={state.startingBaselines.sleep} placeholder="Example: about 7 hours" onChange={(event) => patchState({ startingBaselines: { ...state.startingBaselines, sleep: event.target.value } })} />
+            </Field>
+            <Field label="Activity">
+              <TextInput value={state.startingBaselines.activity} placeholder="Example: walks most days" onChange={(event) => patchState({ startingBaselines: { ...state.startingBaselines, activity: event.target.value } })} />
+            </Field>
+            <Field label="Nutrition">
+              <TextInput value={state.startingBaselines.nutrition} placeholder="Example: late dinners" onChange={(event) => patchState({ startingBaselines: { ...state.startingBaselines, nutrition: event.target.value } })} />
+            </Field>
+            <Field label="Recovery">
+              <TextInput value={state.startingBaselines.recovery} placeholder="Example: often tired in the afternoon" onChange={(event) => patchState({ startingBaselines: { ...state.startingBaselines, recovery: event.target.value } })} />
+            </Field>
+            <p className="text-sm leading-6 text-ink-soft">
+              Tracker goals are saved on this account. Skipping this step keeps the suggested 8-hour sleep goal unsaved.
+            </p>
+            <ScoringGoalsFields
+              goals={state.scoringGoals}
+              onChange={(scoringGoals) => patchState({ scoringGoals })}
+              bedtime={state.profile.typicalBedtime}
+              onBedtime={(typicalBedtime) => patchProfile({ typicalBedtime })}
+              sleepDisplay={sleepDraft ?? (state.scoringGoals.sleepHoursGoal == null ? "8" : String(state.scoringGoals.sleepHoursGoal))}
+              onSleepDisplay={(value) => {
+                setSleepDraft(value);
+                const hours = Number(value);
+                patchState({
+                  scoringGoals: {
+                    ...state.scoringGoals,
+                    sleepHoursGoal: value.trim() === "" || !(hours > 0) ? null : hours,
+                  },
+                });
+              }}
+            />
+          </div>
+        );
+      case 13:
+        return (
+          <div className="space-y-3 text-sm leading-6 text-ink-soft">
+            <p>Cycle tracking is optional. Leave it off if it does not apply. It does not change the Wellness Tracker.</p>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" checked={cycleOptIn} onChange={(event) => setCycleOptIn(event.target.checked)} />
+              <span>I want cycle tracking available on this account.</span>
+            </label>
+          </div>
+        );
+      default:
+        return null;
     }
+  }
+
+  function moveGoal(index: number, direction: -1 | 1) {
+    const goals = [...state.profile.goals];
+    const target = index + direction;
+    if (target < 0 || target >= goals.length) return;
+    const [goal] = goals.splice(index, 1);
+    if (!goal) return;
+    goals.splice(target, 0, goal);
+    patchProfile({ goals });
   }
 }

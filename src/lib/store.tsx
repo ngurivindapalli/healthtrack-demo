@@ -4,47 +4,28 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useSyncExternalStore,
 } from "react";
-import { SAMPLE_UPLOAD_REPORT } from "@/lib/data/labs";
-import {
-  createBlankCustomState,
-  createRamState,
-} from "@/lib/data/ram";
+import { createBlankCustomState } from "@/lib/data/ram";
 import { buildAppModel, type AppModel } from "@/lib/engines/view-model";
-import { DEMO_NOW, DEMO_TODAY } from "@/lib/metrics";
+import { authClient } from "@/lib/auth-client";
 import { answerCoach, seedCoachWelcome } from "@/lib/services/coach";
-import {
-  applyFailedSync,
-  applySuccessfulSync,
-  applyUpToDateSync,
-  coerceWatchStatus,
-  planSync,
-  sleep,
-  upsertWatchSource,
-} from "@/lib/services/wearable";
-import type {
-  CoachMessage,
-  DemoState,
-  Profile,
-} from "@/lib/types";
-
-const STORAGE_KEY = "healthtrack.demo.v1";
+import type { WorkspacePayload } from "@/lib/services/workspace";
+import { EMPTY_SCORING_GOALS, EMPTY_STARTING_BASELINES, type CoachMessage, type DemoState, type Profile } from "@/lib/types";
 
 interface StoreValue {
   state: DemoState;
   model: AppModel;
   ready: boolean;
-  enterRam: () => void;
-  startCustom: () => void;
-  resetDemo: () => void;
+  signedIn: boolean;
+  resetDemo: () => Promise<void>;
+  deleteHealthData: () => Promise<void>;
   patchState: (patch: Partial<DemoState>) => void;
   patchProfile: (patch: Partial<Profile>) => void;
   setOnboardingStep: (step: number) => void;
   completeOnboarding: () => void;
-  toggleSource: (kind: DemoState["sources"][number]["kind"]) => void;
-  addSampleLabUpload: (filename?: string) => void;
   setCommitment: (
     decision: NonNullable<DemoState["todayCommitment"]>["decision"],
     extra?: { reason?: string; replacedWithId?: string },
@@ -54,61 +35,111 @@ interface StoreValue {
   setContext: (patch: Partial<DemoState["context"]>) => void;
   setCheckIn: (energy: number, stress: number) => void;
   logAdherence: (behaviorId: string, kind: "completed" | "accepted") => void;
-  connectWatch: () => Promise<void>;
-  disconnectWatch: () => void;
-  syncWatch: (force?: boolean) => Promise<void>;
-  armSyncFailure: () => void;
-  dismissWatchNotice: () => void;
+  createPairingCode: () => Promise<{ code: string; expiresAt: string } | { error: string }>;
+  revokeDevice: (deviceId: string) => Promise<void>;
   rateCoach: (messageId: string, feedback: "useful" | "not_useful") => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
 
-function normalizeState(parsed: unknown): DemoState | null {
-  if (!parsed || typeof parsed !== "object") return null;
-  const raw = parsed as Partial<DemoState> & { version?: number };
-  const version = (parsed as { version?: number }).version;
-  if (version !== 1 && version !== 2) return null;
-  const base = raw.mode === "custom" ? createBlankCustomState() : createRamState();
+function accountState(): DemoState {
+  return { ...createBlankCustomState(), mode: "account" };
+}
+
+function applyWorkspace(payload: WorkspacePayload): DemoState {
+  const base = accountState();
   return {
     ...base,
-    ...raw,
-    version: 2,
-    watch: coerceWatchStatus({
-      ...base.watch,
-      ...(raw.watch ?? {}),
-    }),
-    watchImports: raw.watchImports ?? [],
-    syncHistory: raw.syncHistory ?? [],
+    mode: "account",
+    onboardingComplete: payload.onboardingComplete,
+    onboardingStep: payload.onboardingStep,
+    profile: payload.profile,
+    startingBaselines: payload.startingBaselines ?? { ...EMPTY_STARTING_BASELINES },
+    scoringGoals: payload.scoringGoals ?? { ...EMPTY_SCORING_GOALS, sources: { ...EMPTY_SCORING_GOALS.sources } },
+    consents: payload.consents,
+    context: payload.context,
+    todayEnergy: payload.todayEnergy,
+    todayStress: payload.todayStress,
+    todayCommitment: payload.todayCommitment as DemoState["todayCommitment"],
+    adherence: payload.adherence as DemoState["adherence"],
+    snoozedBehaviorIds: payload.snoozedBehaviorIds,
+    declinedBehaviorIds: payload.declinedBehaviorIds,
+    coachMessages: payload.coachMessages as DemoState["coachMessages"],
+    reflection: payload.reflection as DemoState["reflection"],
+    devices: payload.devices,
+    persistedObservations: payload.observations,
+    dataAsOf: payload.dataAsOf,
+    nowIso: payload.nowIso,
+    enteredAt: payload.nowIso,
   };
 }
 
-function loadState(): DemoState | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return normalizeState(JSON.parse(raw) as unknown);
-  } catch {
-    return null;
-  }
-}
-
-function persist(state: DemoState) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-const SERVER_SNAPSHOT = createRamState();
+const SERVER_SNAPSHOT = accountState();
 let clientState: DemoState = SERVER_SNAPSHOT;
-let storageRead = false;
+let signedIn = false;
+let hydrated = false;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
 
 function readClientState(): DemoState {
-  if (!storageRead) {
-    storageRead = true;
-    clientState = loadState() ?? createRamState();
-  }
   return clientState;
+}
+
+function scheduleSave() {
+  if (typeof window === "undefined" || !hydrated || !signedIn) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    void pushWorkspace();
+  }, 400);
+}
+
+export async function flushWorkspace() {
+  if (typeof window === "undefined" || !hydrated || !signedIn) return false;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  return pushWorkspace();
+}
+
+async function pushWorkspace() {
+  const state = clientState;
+  const response = await fetch("/api/v1/me/workspace", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      profile: state.profile,
+      startingBaselines: state.startingBaselines,
+      scoringGoals: state.scoringGoals,
+      consents: state.consents,
+      onboardingComplete: state.onboardingComplete,
+      onboardingStep: state.onboardingStep,
+      context: state.context,
+      todayEnergy: state.todayEnergy,
+      todayStress: state.todayStress,
+      todayCommitment: state.todayCommitment,
+      adherence: state.adherence,
+      snoozedBehaviorIds: state.snoozedBehaviorIds,
+      declinedBehaviorIds: state.declinedBehaviorIds,
+      coachMessages: state.coachMessages,
+      reflection: state.reflection,
+    }),
+  });
+  return response.ok;
+}
+
+export async function refreshWorkspace() {
+  const response = await fetch("/api/v1/me/workspace");
+  if (response.status === 401) {
+    signedIn = false;
+    hydrated = true;
+    clientState = accountState();
+    emit();
+    return;
+  }
+  if (!response.ok) return;
+  signedIn = true;
+  clientState = applyWorkspace((await response.json()) as WorkspacePayload);
+  hydrated = true;
+  emit();
 }
 
 function emit() {
@@ -118,7 +149,7 @@ function emit() {
 function setState(updater: DemoState | ((prev: DemoState) => DemoState)) {
   const prev = typeof window === "undefined" ? SERVER_SNAPSHOT : readClientState();
   clientState = typeof updater === "function" ? updater(prev) : updater;
-  if (typeof window !== "undefined") persist(clientState);
+  scheduleSave();
   emit();
 }
 
@@ -129,7 +160,11 @@ function subscribe(listener: () => void) {
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
   const state = useSyncExternalStore(subscribe, readClientState, () => SERVER_SNAPSHOT);
-  const ready = true;
+  const ready = useSyncExternalStore(subscribe, () => hydrated, () => false);
+  const signedInNow = useSyncExternalStore(subscribe, () => signedIn, () => false);
+  useEffect(() => {
+    void refreshWorkspace();
+  }, []);
 
   const model = useMemo(() => buildAppModel(state), [state]);
 
@@ -137,17 +172,17 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const enterRam = useCallback(() => {
-    setState(createRamState());
+  const resetDemo = useCallback(async () => {
+    await authClient.signOut();
+    signedIn = false;
+    hydrated = true;
+    clientState = accountState();
+    emit();
   }, []);
 
-  const startCustom = useCallback(() => {
-    setState(createBlankCustomState());
-  }, []);
-
-  const resetDemo = useCallback(() => {
-    window.localStorage.removeItem(STORAGE_KEY);
-    setState(createRamState());
+  const deleteHealthData = useCallback(async () => {
+    await fetch("/api/v1/me/health-data", { method: "DELETE" });
+    await refreshWorkspace();
   }, []);
 
   const patchProfile = useCallback((patch: Partial<Profile>) => {
@@ -162,45 +197,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({
       ...prev,
       onboardingComplete: true,
-      onboardingStep: 11,
-      enteredAt: `${DEMO_TODAY}T12:00:00Z`,
-      todayCommitment: prev.todayCommitment ?? {
-        date: DEMO_TODAY,
-        behaviorId: "normal-bedtime",
-        decision: "pending",
-      },
+      onboardingStep: 14,
+      enteredAt: prev.nowIso,
     }));
-  }, []);
-
-  const toggleSource = useCallback((kind: DemoState["sources"][number]["kind"]) => {
-    setState((prev) => ({
-      ...prev,
-      sources: prev.sources.map((source) =>
-        source.kind === kind
-          ? {
-              ...source,
-              connected: !source.connected,
-              lastSync: !source.connected ? `${DEMO_TODAY}T12:04:00Z` : null,
-              coverage30d: !source.connected ? 0.9 : null,
-            }
-          : source,
-      ),
-    }));
-  }, []);
-
-  const addSampleLabUpload = useCallback((filename?: string) => {
-    setState((prev) => {
-      if (prev.labReports.some((report) => report.id === SAMPLE_UPLOAD_REPORT.id)) {
-        return prev;
-      }
-      return {
-        ...prev,
-        labReports: [
-          ...prev.labReports,
-          { ...SAMPLE_UPLOAD_REPORT, filename: filename || SAMPLE_UPLOAD_REPORT.filename },
-        ],
-      };
-    });
   }, []);
 
   const setCommitment = useCallback(
@@ -214,8 +213,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
           prev.todayCommitment?.behaviorId ??
           "normal-bedtime";
         const event = {
-          id: `${decision}-${DEMO_TODAY}-${behaviorId}`,
-          date: DEMO_TODAY,
+          id: `${decision}-${prev.dataAsOf}-${behaviorId}`,
+          date: prev.dataAsOf,
           behaviorId,
           kind:
             decision === "completed"
@@ -234,12 +233,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         return {
           ...prev,
           todayCommitment: {
-            date: DEMO_TODAY,
+            date: prev.dataAsOf,
             behaviorId,
             decision,
             replacedWithId: extra?.replacedWithId,
             reason: extra?.reason,
-            completedAt: decision === "completed" ? `${DEMO_TODAY}T20:15:00Z` : undefined,
+            completedAt: decision === "completed" ? prev.nowIso : undefined,
           },
           snoozedBehaviorIds:
             decision === "snoozed"
@@ -264,11 +263,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       setState((prev) => ({
         ...prev,
         reflection: {
-          weekOf: "2026-10-12",
+          weekOf: prev.dataAsOf,
           energy,
           stress,
           note,
-          savedAt: `${DEMO_TODAY}T18:00:00Z`,
+          savedAt: prev.nowIso,
         },
       }));
     },
@@ -290,8 +289,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         adherence: [
           ...prev.adherence,
           {
-            id: `${kind}-${DEMO_TODAY}-${behaviorId}-${Date.now()}`,
-            date: DEMO_TODAY,
+            id: `${kind}-${prev.dataAsOf}-${behaviorId}-${Date.now()}`,
+            date: prev.dataAsOf,
             behaviorId,
             kind,
           },
@@ -301,106 +300,18 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const connectWatch = useCallback(async () => {
-    const current = readClientState();
-    if (current.watch.connected || current.watch.status === "connecting") return;
-    setState((prev) => ({
-      ...prev,
-      watch: { ...prev.watch, status: "connecting", notice: null },
-    }));
-    await sleep(700);
-    setState((prev) => ({
-      ...prev,
-      watch: {
-        ...prev.watch,
-        connected: true,
-        status: "connected",
-        notice: {
-          kind: "success",
-          message:
-            "Pulse Watch connected. This is a simulated Junction link — no Bluetooth, OAuth, or vendor credentials.",
-        },
-      },
-      sources: upsertWatchSource(prev.sources, true, prev.watch.lastSyncAt),
-    }));
-  }, []);
-
-  const disconnectWatch = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      watch: {
-        ...prev.watch,
-        connected: false,
-        status: "disconnected",
-        notice: {
-          kind: "info",
-          message:
-            "Pulse Watch disconnected. Imported readings remain until you reset the demo.",
-        },
-      },
-      sources: upsertWatchSource(prev.sources, false, prev.watch.lastSyncAt),
-    }));
-  }, []);
-
-  const syncWatch = useCallback(async (force = false) => {
-    const current = readClientState();
-    if (current.watch.status === "syncing") return;
-    let plan = planSync(current, DEMO_NOW);
-    if (plan.kind === "up_to_date" && force) {
-      plan = {
-        kind: "catch-up",
-        message: "Refreshed today’s Pulse Watch readings in place.",
-      };
+  const createPairingCode = useCallback(async () => {
+    const response = await fetch("/api/v1/pairing-sessions", { method: "POST" });
+    const body = (await response.json()) as { code?: string; expiresAt?: string; error?: { message?: string } };
+    if (!response.ok || !body.code || !body.expiresAt) {
+      return { error: body.error?.message ?? "Could not create a pairing code." };
     }
-    if (plan.kind === "blocked") {
-      setState((prev) => ({
-        ...prev,
-        watch: {
-          ...prev.watch,
-          notice: { kind: "error", message: plan.message },
-        },
-      }));
-      return;
-    }
-    setState((prev) => ({
-      ...prev,
-      watch: { ...prev.watch, status: "syncing", notice: null },
-    }));
-    await sleep(1100);
-    setState((prev) => {
-      if (plan.kind === "failed") {
-        return { ...prev, ...applyFailedSync(prev, DEMO_NOW, plan.message) };
-      }
-      if (plan.kind === "up_to_date") {
-        return { ...prev, ...applyUpToDateSync(prev, DEMO_NOW, plan.message) };
-      }
-      if (plan.kind !== "history" && plan.kind !== "catch-up") {
-        return prev;
-      }
-      const successPlan = {
-        kind: plan.kind,
-        message: plan.message,
-      };
-      const existing = buildAppModel(prev).observations;
-      return {
-        ...prev,
-        ...applySuccessfulSync(prev, existing, DEMO_NOW, successPlan),
-      };
-    });
+    return { code: body.code, expiresAt: body.expiresAt };
   }, []);
 
-  const armSyncFailure = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      watch: {
-        ...prev.watch,
-        failNextSync: true,
-        notice: {
-          kind: "info",
-          message: "The next sync will simulate an ingest failure. Stored readings will be left unchanged.",
-        },
-      },
-    }));
+  const revokeDevice = useCallback(async (deviceId: string) => {
+    await fetch(`/api/v1/devices/${deviceId}`, { method: "DELETE" });
+    await refreshWorkspace();
   }, []);
 
   const rateCoach = useCallback((messageId: string, feedback: "useful" | "not_useful") => {
@@ -409,13 +320,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       coachMessages: prev.coachMessages.map((message) =>
         message.id === messageId ? { ...message, feedback } : message,
       ),
-    }));
-  }, []);
-
-  const dismissWatchNotice = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      watch: { ...prev.watch, notice: null },
     }));
   }, []);
 
@@ -479,52 +383,42 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       state,
       model,
       ready,
-      enterRam,
-      startCustom,
+      signedIn: signedInNow,
       resetDemo,
+      deleteHealthData,
       patchState,
       patchProfile,
       setOnboardingStep,
       completeOnboarding,
-      toggleSource,
-      addSampleLabUpload,
       setCommitment,
       saveReflection,
       askCoach,
       setContext,
       setCheckIn,
       logAdherence,
-      connectWatch,
-      disconnectWatch,
-      syncWatch,
-      armSyncFailure,
-      dismissWatchNotice,
+      createPairingCode,
+      revokeDevice,
       rateCoach,
     }),
     [
       state,
       model,
       ready,
-      enterRam,
-      startCustom,
+      signedInNow,
       resetDemo,
+      deleteHealthData,
       patchState,
       patchProfile,
       setOnboardingStep,
       completeOnboarding,
-      toggleSource,
-      addSampleLabUpload,
       setCommitment,
       saveReflection,
       askCoach,
       setContext,
       setCheckIn,
       logAdherence,
-      connectWatch,
-      disconnectWatch,
-      syncWatch,
-      armSyncFailure,
-      dismissWatchNotice,
+      createPairingCode,
+      revokeDevice,
       rateCoach,
     ],
   );

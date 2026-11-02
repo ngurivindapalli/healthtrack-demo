@@ -95,7 +95,7 @@ export default function PillarTrendPage() {
       {view?.snapshots.length === 0 && pillar !== "labs" ? (
         <Card>
           <p className="text-sm text-ink-soft">
-            Not enough wearable days yet. Connect a sample source or enter as Ram.
+            Not enough stored days yet. Today stays empty until the companion app uploads measurements.
           </p>
         </Card>
       ) : null}

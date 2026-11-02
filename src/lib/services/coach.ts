@@ -65,13 +65,13 @@ export function answerCoach(
     if (!a1c) {
       return {
         content:
-          "There is no parsed lab report in this workspace yet. You can add a sample report from Profile → Labs. Until then, Today's ONE is driven by wearable and check-in signals only.",
+          "There is no parsed lab report on this account. Today's ONE uses stored measurements and check-ins only.",
         sources,
         safetyFlag: false,
       };
     }
     return {
-      content: `Latest parsed ${latest.labName} report (${latest.collectedAt}): HbA1c ${a1c.value}% ${a1c.priorValue != null ? `(was ${a1c.priorValue}% on ${a1c.priorDate})` : ""}. ${a1c.note}\n\nLabs are episodic context, not a daily score. HealthTrack uses them to rank low-risk behaviors — for you, that supports keeping post-dinner walking in the Repeat ONE slot — and does not turn a lab interval into a diagnosis.\n\nParser: ${latest.parser}. Parse confidence ${Math.round(latest.parseConfidence * 100)}%. This demo parse is simulated.`,
+      content: `Latest parsed ${latest.labName} report (${latest.collectedAt}): HbA1c ${a1c.value}% ${a1c.priorValue != null ? `(was ${a1c.priorValue}% on ${a1c.priorDate})` : ""}. ${a1c.note}\n\nLabs are episodic context, not a daily score. HealthTrack uses them to rank low-risk behaviors — for you, that supports keeping post-dinner walking in the Repeat ONE slot — and does not turn a lab interval into a diagnosis.\n\nParser: ${latest.parser}. Parse confidence ${Math.round(latest.parseConfidence * 100)}%.`,
       sources: [...sources, `Lab report ${latest.id}`, `Parser ${latest.parser}`],
       safetyFlag: false,
     };
@@ -89,7 +89,7 @@ export function answerCoach(
     }
     const repeat = model.repeatOne;
     return {
-      content: `Highest-priority issue today: ${STATE_COPY[status.state].label.toLowerCase()} wellness, driven by ${status.drivers.map((d) => d.label.toLowerCase()).join(", ") || "your recent pattern"}.\n\nToday's ONE is “${one.candidate.instruction}”\n\nWhy this, not a list: ${one.why}\n\nRanking used relevance, personal evidence, expected benefit, feasibility, confidence and preference, then penalized burden and uncertainty. The model did not invent the behavior — it selected from a curated low-risk library.\n\n${repeat ? `Repeat ONE stays “${repeat.candidate.title}” because it already has repeated personal observations. ${repeat.evidenceNote}` : "Repeat ONE is hidden until a behavior has enough personal evidence."}\n\nYou can decline, replace, or snooze. That feedback is stored in this demo and changes ranking.`,
+      content: `Highest-priority issue today: ${STATE_COPY[status.state].label.toLowerCase()} wellness, driven by ${status.drivers.map((d) => d.label.toLowerCase()).join(", ") || "your recent pattern"}.\n\nToday's ONE is “${one.candidate.instruction}”\n\nWhy this, not a list: ${one.why}\n\nRanking used relevance, personal evidence, expected benefit, feasibility, confidence and preference, then penalized burden and uncertainty. The model did not invent the behavior — it selected from a curated low-risk library.\n\n${repeat ? `Repeat ONE stays “${repeat.candidate.title}” because it already has repeated personal observations. ${repeat.evidenceNote}` : "Repeat ONE is hidden until a behavior has enough personal evidence."}\n\nYou can decline, replace, or snooze. That feedback is stored on your account and changes ranking.`,
       sources,
       safetyFlag: false,
     };
@@ -98,7 +98,7 @@ export function answerCoach(
   if (q.includes("recover") || q.includes("hrv") || q.includes("rhr") || q.includes("heart")) {
     const recovery = model.pillars.find((p) => p.id === "recovery");
     return {
-      content: `Recovery is ${recovery?.directionLabel.toLowerCase() ?? "still loading"}. ${recovery?.summary}\n\nMeasured: HRV and resting HR from simulated wearable streams, plus your energy/stress check-ins.\nInferred: that several of those signals moving together is more informative than any one number.\nGeneral evidence: sleep and evening movement often relate to overnight recovery — that is population knowledge, not your proof.\nUncertainty: thresholds in ${status.engineVersion} are demo calibrations, not clinically validated cutoffs.\n\n${status.clinicalDisclaimer}`,
+      content: `Recovery is ${recovery?.directionLabel.toLowerCase() ?? "still loading"}. ${recovery?.summary}\n\nMeasured: HRV and resting heart rate from stored companion measurements, plus your energy and stress check-ins. Missing values are not treated as zero.\nInferred: that several of those signals moving together is more informative than any one number.\nGeneral evidence: sleep and evening movement often relate to overnight recovery — that is population knowledge, not your proof.\nUncertainty: thresholds in ${status.engineVersion} are product calibrations, not clinically validated cutoffs.\n\n${status.clinicalDisclaimer}`,
       sources,
       safetyFlag: false,
     };

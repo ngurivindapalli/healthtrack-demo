@@ -156,7 +156,8 @@ export function computeWellnessStatus(input: {
     };
   });
 
-  const state = mapState(composite, persistence, agreeing, safety);
+  const insufficient = den === 0;
+  const state = insufficient ? "stable" : mapState(composite, persistence, agreeing, safety);
   const validDays = input.observations.filter((row) => row.sleepHours != null).length;
   const missingLast7 = input.observations.slice(-7).filter((row) => row.sleepHours == null).length;
   const sources = Array.from(
@@ -171,7 +172,9 @@ export function computeWellnessStatus(input: {
     composite,
     persistenceDays: persistence,
     agreeingDomains: agreeing,
-    summary: stateSummary(state, drivers, persistence),
+    summary: insufficient
+      ? "There are not enough stored measurements to compare with your baseline. Missing values stay blank."
+      : stateSummary(state, drivers, persistence),
     clinicalDisclaimer: CLINICAL_DISCLAIMER,
     drivers,
     domains,

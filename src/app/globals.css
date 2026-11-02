@@ -1,25 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f1ece1;
-  --paper-2: #e6dfd1;
-  --surface: #faf7f0;
-  --ink: #14241c;
-  --ink-soft: #3c4e45;
-  --muted: #66756c;
-  --line: #d5ccbc;
-  --pine: #1b5840;
-  --pine-2: #123d2c;
-  --sage: #7c9a80;
-  --one: #c45c24;
-  --one-ink: #7a2e0e;
-  --one-soft: #f6e6d7;
-  --thrive: #1f6b4a;
-  --stable: #3d5c5e;
-  --shifting: #a85c12;
-  --attention: #8c3535;
-  --info: #35586b;
-  --focus: #1b5840;
+  --paper: #f2f2f7;
+  --paper-2: #e5e5ea;
+  --surface: #ffffff;
+  --ink: #1c1c1e;
+  --ink-soft: #3a3a3c;
+  --muted: #8e8e93;
+  --line: #e5e5ea;
+  --pine: #1c1c1e;
+  --pine-2: #3a3a3c;
+  --sage: #c7c7cc;
+  --one: #ff9500;
+  --one-ink: #c93400;
+  --one-soft: #fff4e5;
+  --thrive: #248a3d;
+  --thrive-soft: #e7f8ec;
+  --stable: #636366;
+  --stable-soft: #f2f2f7;
+  --shifting: #c93400;
+  --shifting-soft: #fff1e5;
+  --attention: #d70015;
+  --attention-soft: #ffecee;
+  --info: #007aff;
+  --focus: #007aff;
+  --heart: #ff2d55;
+  --move: #ff9500;
+  --exercise: #34c759;
+  --sleep: #007aff;
+  --mind: #af52de;
+  --cycle: #ff2d55;
+  --font-source: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
 }
 
 @theme inline {
@@ -42,7 +54,7 @@
   --color-attention: var(--attention);
   --color-info: var(--info);
   --font-sans: var(--font-source);
-  --font-display: var(--font-fraunces);
+  --font-display: var(--font-display);
 }
 
 html {
@@ -52,12 +64,12 @@ html {
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-source), "Segoe UI", sans-serif;
+  font-family: var(--font-source);
   min-height: 100%;
 }
 
 ::selection {
-  background: #d7ecdf;
+  background: #d6e8ff;
   color: var(--ink);
 }
 
@@ -67,10 +79,22 @@ body {
 }
 
 .display {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-optical-sizing: auto;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
 .hairline {
   box-shadow: inset 0 0 0 1px var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

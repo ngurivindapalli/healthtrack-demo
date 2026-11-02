@@ -16,13 +16,13 @@ export default function PrivacyPage() {
         <Eyebrow>Privacy</Eyebrow>
         <h1 className="display mt-1 text-3xl">Consent and data use</h1>
         <p className="mt-2 text-sm text-ink-soft">
-          Production architecture in the blueprint uses Supabase Auth, RLS and audit logs. This demo keeps choices in localStorage on your device.
+          Profile answers, consent, and companion-app measurements are stored for your account. Passwords are handled by the authentication provider. This site does not read Apple Health.
         </p>
       </header>
       <Card className="space-y-3 text-sm">
         {(
           [
-            ["wearables", "Simulated wearable sync"],
+            ["wearables", "Store measurements uploaded by a paired companion app"],
             ["labs", "Lab report storage"],
             ["coaching", "Coach explanations"],
             ["productAnalytics", "Product analytics"],

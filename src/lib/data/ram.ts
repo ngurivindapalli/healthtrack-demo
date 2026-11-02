@@ -1,17 +1,25 @@
 import { RAM_LAB_REPORTS } from "@/lib/data/labs";
 import { DEMO_TODAY } from "@/lib/metrics";
-import {
-  blankWatchState,
-  ramWatchState,
-  upsertWatchSource,
-} from "@/lib/services/wearable";
+import { EMPTY_SCORING_GOALS, EMPTY_STARTING_BASELINES } from "@/lib/types";
 import type {
   AdherenceEvent,
   ConnectedSource,
   ConsentChoices,
   DemoState,
   Profile,
+  WatchState,
 } from "@/lib/types";
+
+function disconnectedWatch(): WatchState {
+  return {
+    connected: false,
+    status: "disconnected",
+    lastSyncAt: null,
+    batteryPct: 0,
+    failNextSync: false,
+    notice: null,
+  };
+}
 
 export const RAM_PROFILE: Profile = {
   displayName: "Ram Chen",
@@ -31,6 +39,7 @@ export const RAM_PROFILE: Profile = {
   stressContext: "Deadline-heavy week, kids' school events",
   coachingTone: "direct",
   notifications: true,
+  timezone: "America/New_York",
 };
 
 export const RAM_CONSENTS: ConsentChoices = {
@@ -177,8 +186,10 @@ export function createRamState(): DemoState {
     onboardingComplete: true,
     onboardingStep: 11,
     profile: RAM_PROFILE,
+    startingBaselines: { ...EMPTY_STARTING_BASELINES },
+    scoringGoals: { ...EMPTY_SCORING_GOALS, sources: { ...EMPTY_SCORING_GOALS.sources } },
     consents: RAM_CONSENTS,
-    sources: upsertWatchSource(SOURCE_CATALOG, true, `${DEMO_TODAY}T07:12:00Z`),
+    sources: SOURCE_CATALOG,
     labReports: RAM_LAB_REPORTS,
     context: {
       travel: false,
@@ -205,9 +216,13 @@ export function createRamState(): DemoState {
       savedAt: "2026-10-12T21:14:00Z",
     },
     enteredAt: `${DEMO_TODAY}T17:02:00Z`,
-    watch: ramWatchState(),
+    watch: disconnectedWatch(),
     watchImports: [],
     syncHistory: [],
+    persistedObservations: [],
+    dataAsOf: DEMO_TODAY,
+    nowIso: `${DEMO_TODAY}T18:40:00Z`,
+    devices: [],
   };
 }
 
@@ -235,14 +250,17 @@ export function createBlankCustomState(): DemoState {
       stressContext: "",
       coachingTone: "gentle",
       notifications: true,
+      timezone: "UTC",
     },
+    startingBaselines: { ...EMPTY_STARTING_BASELINES },
+    scoringGoals: { ...EMPTY_SCORING_GOALS, sources: { ...EMPTY_SCORING_GOALS.sources } },
     consents: {
       wearables: false,
       labs: false,
       coaching: true,
       productAnalytics: false,
     },
-    sources: upsertWatchSource(DISCONNECTED_SOURCES, false, null),
+    sources: DISCONNECTED_SOURCES,
     labReports: [],
     context: {
       travel: false,
@@ -259,9 +277,13 @@ export function createBlankCustomState(): DemoState {
     coachMessages: [],
     reflection: null,
     enteredAt: null,
-    watch: blankWatchState(),
+    watch: disconnectedWatch(),
     watchImports: [],
     syncHistory: [],
+    persistedObservations: [],
+    dataAsOf: DEMO_TODAY,
+    nowIso: `${DEMO_TODAY}T18:40:00Z`,
+    devices: [],
   };
 }
 

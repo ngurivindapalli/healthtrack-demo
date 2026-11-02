@@ -3,10 +3,10 @@ import { STATE_COPY } from "@/lib/metrics";
 import type { WellnessState } from "@/lib/types";
 
 const TONE: Record<WellnessState, string> = {
-  thriving: "bg-[#dceee3] text-thrive",
-  stable: "bg-[#dce6e8] text-stable",
-  shifting: "bg-[#f6e4cc] text-shifting",
-  needs_attention: "bg-[#f3d6d6] text-attention",
+  thriving: "bg-[var(--thrive-soft)] text-thrive",
+  stable: "bg-[var(--stable-soft)] text-stable",
+  shifting: "bg-[var(--shifting-soft)] text-shifting",
+  needs_attention: "bg-[var(--attention-soft)] text-attention",
 };
 
 export function StatusBadge({
@@ -34,7 +34,7 @@ export function SampleMark({ children }: { children?: React.ReactNode }) {
   return (
     <p className="rounded-lg bg-paper-2 px-3 py-2 text-xs leading-5 text-ink-soft">
       {children ??
-        "Sample person · simulated wearable and lab data · not a live connection or medical device."}
+        "Stored account data. Missing measurements stay blank. This is not a medical device."}
     </p>
   );
 }

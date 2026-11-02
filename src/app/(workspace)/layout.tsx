@@ -10,13 +10,21 @@ export default function WorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { state, ready } = useDemo();
+  const { state, ready, signedIn } = useDemo();
   const router = useRouter();
 
   useEffect(() => {
     if (!ready) return;
+    if (!signedIn) {
+      router.replace("/sign-in");
+      return;
+    }
     if (!state.onboardingComplete) router.replace("/onboarding");
-  }, [ready, state.onboardingComplete, router]);
+  }, [ready, signedIn, state.onboardingComplete, router]);
+
+  if (!ready || !signedIn || !state.onboardingComplete) {
+    return <p className="px-6 py-10 text-sm text-muted">Loading your account…</p>;
+  }
 
   return <AppShell>{children}</AppShell>;
 }

@@ -21,7 +21,8 @@ export type DataSourceKind =
   | "garmin"
   | "fitbit"
   | "manual"
-  | "watch";
+  | "watch"
+  | "companion";
 
 export type WatchLinkStatus =
   | "disconnected"
@@ -38,7 +39,7 @@ export type FreshnessKind =
 
 export type SyncAttemptStatus = "success" | "up_to_date" | "failed";
 
-export type DemoMode = "unstarted" | "ram" | "custom";
+export type DemoMode = "unstarted" | "ram" | "custom" | "account";
 
 export type CommitmentDecision =
   | "pending"
@@ -233,6 +234,44 @@ export interface ConnectedSource {
   simulated: true;
 }
 
+export interface StartingBaselines {
+  sleep: string;
+  activity: string;
+  nutrition: string;
+  recovery: string;
+}
+
+export const EMPTY_STARTING_BASELINES: StartingBaselines = {
+  sleep: "",
+  activity: "",
+  nutrition: "",
+  recovery: "",
+};
+
+export type TrackerSource = "manual" | "companion";
+
+export interface ScoringGoals {
+  mealTarget: number | null;
+  calorieGoal: number | null;
+  sleepHoursGoal: number | null;
+  activityKind: "steps" | "active_minutes" | null;
+  activityGoal: number | null;
+  sources: {
+    hydration: TrackerSource | null;
+    sleep: TrackerSource | null;
+    activity: TrackerSource | null;
+  };
+}
+
+export const EMPTY_SCORING_GOALS: ScoringGoals = {
+  mealTarget: null,
+  calorieGoal: null,
+  sleepHoursGoal: null,
+  activityKind: null,
+  activityGoal: null,
+  sources: { hydration: null, sleep: null, activity: null },
+};
+
 export interface Profile {
   displayName: string;
   age: number;
@@ -251,6 +290,7 @@ export interface Profile {
   stressContext: string;
   coachingTone: "direct" | "gentle";
   notifications: boolean;
+  timezone: string;
 }
 
 export interface ConsentChoices {
@@ -352,6 +392,8 @@ export interface DemoState {
   onboardingComplete: boolean;
   onboardingStep: number;
   profile: Profile;
+  startingBaselines: StartingBaselines;
+  scoringGoals: ScoringGoals;
   consents: ConsentChoices;
   sources: ConnectedSource[];
   labReports: LabReport[];
@@ -368,6 +410,20 @@ export interface DemoState {
   watch: WatchState;
   watchImports: WatchImportRecord[];
   syncHistory: SyncHistoryItem[];
+  persistedObservations: DailyObservation[];
+  dataAsOf: string;
+  nowIso: string;
+  devices: LinkedDevice[];
+}
+
+export interface LinkedDevice {
+  id: string;
+  name: string;
+  platform: string;
+  status: "active" | "revoked";
+  lastSyncAt: string | null;
+  categories: string[];
+  createdAt: string;
 }
 
 export interface TrendItem {

@@ -4,7 +4,7 @@ Interactive product demo of **HealthTrack**, a personal wellness guidance system
 
 Philosophy: **Know your normal. Notice what matters. Do ONE thing. Repeat what works.**
 
-This is a frontend-first Vercel demo. It does not require an account, wearable credentials, a database, or API keys.
+Accounts, profiles, and health measurements are stored on the server. The companion mobile app is a separate project. See `docs/mobile-integration.md`.
 
 ## Local setup
 
@@ -13,50 +13,48 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). The local database file is `data/healthtrack.db` and is created on first use. Copy `.env.example` if you need email, Google sign-in, or a hosted database.
 
 Other scripts:
 
 ```bash
 npm run lint
 npm run typecheck
+npm test
 npm run build
 npm start
 ```
 
-## Demonstration path
+Health check: `GET /api/health`.
 
-1. Land on the entry screen.
-2. Choose **Open Ram’s Today** (prepopulated) or **Start with an empty profile**.
-3. On **Today**, read My Wellness Status, compact pillar states, Today’s ONE, and Repeat ONE. Watch data should show as stale (last vendor sync 7:12 am).
-4. Open **Pulse Watch**, click **Sync watch data**, then return to Today — steps, recovery, activity, charts, and associations update from the same store.
-5. Accept, decline, replace, snooze, or mark the ONE done. Check-ins and context flags update the engines.
-6. Open **Trends** for ranked personal-baseline deviations and drill into a pillar.
-7. Open **Progress** for the Personal Behavior Library, associations, and a weekly reflection.
-8. Open **Profile** for devices, parsed labs, privacy, then **Ask Health Coach**.
-9. Use **Reset demo** to restore Ram’s 16 Oct 2026 workspace, including a stale morning last-sync.
+## Product path
 
-Ram Chen is the blueprint’s running example: ~42 days of simulated Oura + Apple Health, two Quest lab reports, a four-day shift away from personal baseline, and an evening-walk association with overnight HRV.
+1. Create an account or sign in.
+2. Finish onboarding. A returning account resumes the saved profile.
+3. Today shows stored measurements. With no companion upload, metrics stay unavailable rather than zero.
+4. Devices can create a one-time pairing code. Nothing is shown as connected until the mobile app completes pairing.
+5. Profile can sign out, delete health data, or delete the account.
 
 ## Architecture
 
 | Layer | Location | Role |
 | --- | --- | --- |
 | UI | `src/app`, `src/components` | App Router screens |
-| Demo state | `src/lib/store.tsx` | Browser localStorage; reset-able |
-| Sample data | `src/lib/data` | Observations, labs, Ram profile |
+| Account session | `src/lib/auth.ts` | Better Auth, server-side password hashing |
+| Database | `src/db/index.ts` | SQLite locally, libSQL when `DATABASE_URL` is remote |
+| Profile and devices | `src/lib/services/workspace.ts`, `pairing.ts` | Server-persisted profile and device credentials |
+| Measurements | `src/lib/services/measurements.ts` | Validation, idempotent batches, daily aggregates |
+| Client cache | `src/lib/store.tsx` | Hydrates from `GET /api/v1/me/workspace` |
 | Baseline / status | `src/lib/engines/baseline.ts`, `status.ts` | Deterministic, versioned `status-engine@0.1-demo` |
 | Behavior ranking | `src/lib/engines/behaviors.ts` | Today’s ONE and Repeat ONE |
-| Associations | `src/lib/engines/associations.ts` | Association language only |
-| Coach | `src/lib/services/coach.ts`, `src/app/api/coach/route.ts` | Explains engine output; optional live wording |
-| Watch ingest | `src/lib/services/wearable.ts` | Simulated connect / sync / merge (replace this file for a real API) |
-| Freshness | `src/lib/engines/freshness.ts` | Shared 4-hour threshold vs demo clock 18:40 UTC |
+| Coach | `src/lib/services/coach.ts`, `src/app/api/coach/route.ts` | Deterministic wording; optional OpenAI rewrite |
+| Contract | `docs/openapi/v1.yaml` | Companion API |
 
 The consumer sees **Thriving / Stable / Shifting / Needs Attention**, not a 0–100 health score.
 
 ## What is real vs simulated
 
-**Computed in the demo (real logic, sample inputs):**
+**Computed from stored measurements:**
 
 - Personal baselines (rolling median / MAD)
 - My Wellness Status and explainable drivers
@@ -66,32 +64,40 @@ The consumer sees **Thriving / Stable / Shifting / Needs Attention**, not a 0–
 - Behavior associations (labeled as associations, not causation)
 - Coach answers grounded in those engines
 
-**Simulated, and labeled as such:**
+**Not available until configured or delivered:**
 
-- Pulse Watch connect/sync (no Bluetooth, OAuth, or vendor API)
-- Junction / Oura / Apple Health / WHOOP / Garmin / Fitbit catalog toggles
-- Lab PDF OCR (upload attaches a sample parse with provenance)
-- Supabase Auth, Postgres, RLS, subscriptions
+- Companion mobile app and any HealthKit or Health Connect access
+- Email verification and password reset until `RESEND_API_KEY` and `EMAIL_FROM` are set
+- Google sign-in until Google OAuth credentials are set
+- Lab PDF parsing
 - Live LLM wording unless `OPENAI_API_KEY` is set
 
 HealthTrack 1.0 does not diagnose, treat, prevent, or detect disease. Thresholds are demo calibrations; the blueprint states they are not clinically validated.
 
 ## Environment variables
 
-See `.env.example`. None are required.
+See `.env.example`.
 
 | Name | Required | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | No | Optional rewrite of coach wording on the server |
+| `BETTER_AUTH_SECRET` | Production | Session signing secret |
+| `BETTER_AUTH_URL` | Production | Public origin |
+| `DATABASE_URL` | Production | Hosted libSQL URL. Local default is a SQLite file |
+| `DATABASE_AUTH_TOKEN` | Remote DB | libSQL auth token |
+| `RESEND_API_KEY`, `EMAIL_FROM` | No | Verification and password reset |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | No | Google sign-in |
+| `OPENAI_API_KEY` | No | Optional coach wording |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` |
 
-Never put secrets in client code. Keys are read only in `src/app/api/coach/route.ts`.
+Never put secrets in client code. Database and provider credentials stay on the server.
 
 ## Deploy on Vercel
 
-The app is a standard Next.js App Router project. Framework: Next.js. Build command: `npm run build`. No required environment variables.
+The app is a Next.js App Router project. Build command: `npm run build`. Production needs `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and a hosted libSQL `DATABASE_URL`. A file database does not persist on Vercel.
 
-A Vercel project named **healthtrack-demo** was created on the `edxnoels-projects` team (`prj_z1L9DNBbM8RwkKLgdqzf8NuQqy3T`). The local CLI was logged out, so a live URL was not published from this session. Link and deploy from this directory:
+The existing public site is the earlier demo and does not include this account system until a new deployment is published. Do not deploy from this tree unless that is intended.
+
+To deploy a preview from this directory:
 
 ```bash
 npx vercel login
@@ -101,12 +107,13 @@ npx vercel
 
 That creates a **preview** URL. Do not run `vercel --prod` unless you intend to overwrite production.
 
-Deep links (`/today/status`, `/trends/sleep`, `/progress/evening-walk`, `/profile/labs/lab-2026-09`, `/coach`, `/watch`) are App Router routes and should refresh without a 404 on Vercel.
+Signed-in routes redirect to `/sign-in` when the session cookie is missing. `/watch` redirects to Devices.
 
 ## Limitations
 
-- Demo clock is pinned to **16 October 2026, 18:40 UTC** so Ram’s four-day shift and 4-hour freshness window stay consistent.
-- Pulse Watch connection is simulated. A real wearable API would replace `src/lib/services/wearable.ts`.
-- Disconnecting the watch does not delete imported readings; Reset demo reseeds Ram.
-- Organization, school, and provider dashboards are out of 1.0 UI scope.
-- Optional OpenAI calls fail closed to the local engine.
+- The companion app is not available. Pairing codes can be created, and they do nothing until that app calls the API.
+- Email and Google sign-in stay disabled until their environment variables are set. The UI does not claim those messages were sent.
+- Rate limits are per server instance.
+- Lab parsing and payments are not implemented.
+- Organization, school, and provider dashboards are out of scope.
+- Optional OpenAI calls fall back to the local engine and do not overwrite measurements.

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Smartphone } from "lucide-react";
 import { DataFreshnessBar } from "@/components/data-freshness";
+import { WellnessPanel } from "@/components/wellness-panel";
 import { DeclinePrompt } from "@/components/decline-prompt";
 import { StatusBadge } from "@/components/status-badge";
 import { Sparkline } from "@/components/sparkline";
@@ -11,7 +12,15 @@ import { seriesFor } from "@/lib/engines/view-model";
 import { formatHours, greetingForName } from "@/lib/format";
 import { METRICS, STATE_COPY } from "@/lib/metrics";
 import { useDemo } from "@/lib/store";
-import type { MetricId } from "@/lib/types";
+import type { MetricId, PillarId } from "@/lib/types";
+
+const PILLAR_TONE: Record<PillarId, "sleep" | "heart" | "exercise" | "move" | "mind"> = {
+  sleep: "sleep",
+  recovery: "heart",
+  nutrition: "exercise",
+  activity: "move",
+  labs: "mind",
+};
 
 export default function TodayPage() {
   const { state, model, setCommitment, setCheckIn, logAdherence, setContext } = useDemo();
@@ -25,28 +34,73 @@ export default function TodayPage() {
         <Eyebrow>Today</Eyebrow>
         <h1 className="display mt-1 text-3xl">{greetingForName(name)}</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          What is your body telling us today — and what is the most useful thing you can do about it?
+          What is usual for you, and the one useful thing to do about it.
         </p>
+        {state.profile.goals.length > 0 ? (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {state.profile.goals.map((goal) => (
+              <li key={goal} className="rounded-full bg-surface px-3 py-1 text-xs font-medium text-ink-soft hairline">
+                {goal}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </header>
+
+      <WellnessPanel />
 
       <DataFreshnessBar />
 
-      {coldStart ? (
+      {observations.length === 0 ? (
+        <Card>
+          <div className="flex items-start gap-3">
+            <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-sleep" aria-hidden />
+            <div>
+              <h2 className="text-base font-semibold">No measurements yet</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">
+                Sleep, heart rate, steps, and activity stay blank until the companion app uploads them. HealthTrack does not fill the gaps with zeros or sample readings.
+              </p>
+              <Link href="/profile/devices" className="mt-3 inline-flex text-sm font-semibold text-pine hover:underline">
+                Set up the companion app
+              </Link>
+            </div>
+          </div>
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+            {[
+              ["Sleep", "var(--sleep)"],
+              ["Heart", "var(--heart)"],
+              ["Activity", "var(--move)"],
+              ["Exercise", "var(--exercise)"],
+            ].map(([label, color]) => (
+              <li key={label} className="flex items-center justify-between rounded-xl bg-paper px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 font-medium">
+                  <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
+                  {label}
+                </span>
+                <span className="text-muted">Unavailable</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {observations.length > 0 && coldStart ? (
         <Card className="bg-one-soft">
           <Eyebrow>Still learning</Eyebrow>
           <p className="mt-2 text-sm leading-6 text-ink-soft">
-            Baseline confidence is {status.confidence}. Comparisons use your profile plus conservative peer/general context until more valid days arrive. Connect a sample wearable in Profile to load a labeled stream.
+            Baseline confidence is {status.confidence}. There is not enough stored history yet to compare against your own range. Connect the companion app when it is available, or keep checking in. Missing measurements stay blank rather than zero.
           </p>
         </Card>
       ) : null}
 
       {status.safety.reason ? (
-        <Card className="border-attention bg-[#f8ecec]">
+        <Card className="bg-[var(--attention-soft)]">
           <Eyebrow>Safety rule</Eyebrow>
           <p className="mt-2 text-sm leading-6">{status.safety.reason}</p>
         </Card>
       ) : null}
 
+      {observations.length > 0 ? <>
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -78,14 +132,21 @@ export default function TodayPage() {
               <Card className="h-full hover:bg-paper">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold">{pillar.title}</p>
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: `var(--${PILLAR_TONE[pillar.id]})` }}
+                        aria-hidden
+                      />
+                      {pillar.title}
+                    </p>
                     <p className="mt-1 text-xs text-muted">{pillar.directionLabel}</p>
                   </div>
                   {pillar.id !== "labs" ? (
                     <Sparkline
                       values={series.slice(-14)}
                       invert={metric === "rhr" || metric === "stress" || metric === "lastMealHour"}
-                      tone={pillar.deviation >= 0.4 ? "one" : "pine"}
+                      tone={PILLAR_TONE[pillar.id]}
                     />
                   ) : null}
                 </div>
@@ -98,6 +159,7 @@ export default function TodayPage() {
           );
         })}
       </div>
+      </> : null}
 
       {todayOne ? (
         <Card className="bg-one-soft">
@@ -139,15 +201,15 @@ export default function TodayPage() {
           </div>
           {decision !== "pending" && decision !== "completed" ? (
             <p className="mt-3 text-xs text-ink-soft">
-              Logged as {decision}. Ranking will avoid this behavior while the demo session remembers it.
+              Logged as {decision}. Ranking will avoid this behavior while it stays on your account.
             </p>
           ) : null}
         </Card>
       ) : (
         <Card>
           <Eyebrow>Today’s ONE</Eyebrow>
-          <p className="mt-2 text-sm text-ink-soft">
-            No eligible ONE right now. That is expected when a safety rule is active, during cold start, or after the current candidates were declined.
+          <p className="mt-2 text-sm leading-6 text-ink-soft">
+            No behavior is recommended until stored measurements can support it. Saved goals, including Recovery, affect ranking after data arrives.
           </p>
         </Card>
       )}

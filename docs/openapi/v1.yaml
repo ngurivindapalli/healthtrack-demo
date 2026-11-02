@@ -1,0 +1,316 @@
+openapi: 3.0.3
+info:
+  title: HealthTrack Companion API
+  version: 1.0.0
+  description: |
+    Version 1 contract for the companion mobile app.
+    The web app authenticates people with a session cookie.
+    The mobile app authenticates uploads with a device bearer token issued by pairing.
+    Clients must not send a user id. The server derives the user from the session or device token.
+    Timestamps are ISO-8601 UTC. A measurement may also include an IANA timezone used to assign the local calendar day.
+    API compatibility stays within 1.x. Breaking changes require a new /api/v2 path.
+servers:
+  - url: "{baseUrl}/api/v1"
+    variables:
+      baseUrl:
+        default: http://localhost:3000
+tags:
+  - name: Account
+  - name: Pairing
+  - name: Devices
+  - name: Measurements
+paths:
+  /config:
+    get:
+      tags: [Account]
+      summary: Public capability flags
+      security: []
+      responses:
+        "200":
+          description: No secrets are included.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [apiVersion, emailDelivery, googleSignIn, companionAppAvailable]
+                properties:
+                  apiVersion: { type: string, example: 1.0.0 }
+                  emailDelivery: { type: boolean }
+                  googleSignIn: { type: boolean }
+                  companionAppAvailable: { type: boolean, example: false }
+  /me/workspace:
+    get:
+      tags: [Account]
+      summary: Signed-in profile, devices, and normalized observations
+      responses:
+        "200":
+          description: Workspace snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workspace" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Account]
+      summary: Update profile, consent, onboarding, and check-ins
+      description: Observations and devices in the body are ignored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkspaceWrite" }
+      responses:
+        "200":
+          description: Saved
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /me/health-data:
+    delete:
+      tags: [Account]
+      summary: Delete health data and keep the account
+      responses:
+        "200":
+          description: Measurements, devices, pairing sessions, and profile answers were cleared.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /pairing-sessions:
+    post:
+      tags: [Pairing]
+      summary: Create a single-use pairing code
+      description: |
+        Requires the signed-in web session. The code expires in 10 minutes and is single-use.
+        Creating a code marks every older unused code for that account as used.
+        The limit is 10 requests per 15 minutes per client on this server instance. Limits are kept in memory and are not shared across multiple instances.
+      responses:
+        "201":
+          description: Plaintext code is returned once.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, code, expiresAt]
+                properties:
+                  id: { type: string }
+                  code: { type: string, example: K7M2Q9LP }
+                  expiresAt: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /pairing-sessions/complete:
+    post:
+      tags: [Pairing]
+      summary: Exchange a pairing code for a device token
+      security: []
+      description: |
+        Limited to 20 requests per 15 minutes per client on this server instance. The limit is in memory and is not shared across instances.
+        The token is returned once and cannot be recovered. Expired, reused, and replaced codes are rejected.
+        name and platform are optional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, installationId]
+              properties:
+                code: { type: string }
+                installationId: { type: string }
+                name: { type: string }
+                platform: { type: string, description: "Suggested values are ios, android, or unknown." }
+      responses:
+        "201":
+          description: Device credential
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deviceId, token, categories]
+                properties:
+                  deviceId: { type: string }
+                  token: { type: string }
+                  categories:
+                    type: array
+                    items: { type: string, enum: [sleep, recovery, activity, heart] }
+        "400": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /devices:
+    get:
+      tags: [Devices]
+      summary: List devices for the signed-in user
+      responses:
+        "200":
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items: { $ref: "#/components/schemas/Device" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /devices/{deviceId}:
+    delete:
+      tags: [Devices]
+      summary: Revoke a device
+      description: Measurements already stored are kept.
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Revoked
+        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /measurements:
+    post:
+      tags: [Measurements]
+      summary: Upload a batch
+      security:
+        - deviceBearer: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, maxLength: 120 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [measurements]
+              properties:
+                measurements:
+                  type: array
+                  maxItems: 500
+                  items: { $ref: "#/components/schemas/Measurement" }
+      responses:
+        "200":
+          description: Batch result. A repeated idempotency key returns the original result and writes nothing new.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /sync:
+    get:
+      tags: [Measurements]
+      summary: Sync status for the bearer device
+      security:
+        - deviceBearer: []
+      responses:
+        "200":
+          description: Last successful sync and latest batch
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deviceId: { type: string }
+                  status: { type: string }
+                  lastSyncAt: { type: string, format: date-time, nullable: true }
+                  latestBatch: { type: object, nullable: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+    deviceBearer:
+      type: http
+      scheme: bearer
+  responses:
+    Unauthorized:
+      description: Missing or invalid credential
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    Error:
+      description: Request error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+  schemas:
+    ErrorBody:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Device:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        platform: { type: string }
+        status: { type: string, enum: [active, revoked] }
+        lastSyncAt: { type: string, format: date-time, nullable: true }
+        categories:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+    Measurement:
+      type: object
+      required: [sourceRecordId, metric, value, unit, startTime, timezone]
+      properties:
+        sourceRecordId: { type: string, description: Unique per device. Retries of the same record use the same id. }
+        metric:
+          type: string
+          enum: [steps, active_minutes, sleep_hours, sleep_efficiency, bedtime_minutes, resting_heart_rate, heart_rate, hrv_ms, evening_walk_minutes]
+        value: { type: number, minimum: 0 }
+        unit:
+          type: string
+          description: steps=count, active_minutes=min, sleep_hours=h, sleep_efficiency=percent, bedtime_minutes=min, resting_heart_rate=bpm, heart_rate=bpm, hrv_ms=ms, evening_walk_minutes=min
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time, nullable: true }
+        timezone: { type: string, description: IANA timezone, for example America/New_York }
+    BatchResult:
+      type: object
+      required: [accepted, duplicates, rejected, replayed]
+      properties:
+        accepted: { type: integer }
+        duplicates: { type: integer }
+        replayed: { type: boolean }
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              sourceRecordId: { type: string }
+              code: { type: string }
+              message: { type: string }
+    Workspace:
+      type: object
+      properties:
+        onboardingComplete: { type: boolean }
+        profile: { type: object }
+        devices:
+          type: array
+          items: { $ref: "#/components/schemas/Device" }
+        observations:
+          type: array
+          description: Daily aggregates. Null fields mean unavailable, not zero.
+          items: { type: object }
+        dataAsOf: { type: string, format: date }
+        nowIso: { type: string, format: date-time }
+    WorkspaceWrite:
+      type: object
+      properties:
+        profile: { type: object }
+        consents: { type: object }
+        onboardingComplete: { type: boolean }
+        onboardingStep: { type: integer }
+        context: { type: object }
+        todayEnergy: { type: integer, nullable: true }
+        todayStress: { type: integer, nullable: true }
+security:
+  - sessionCookie: []

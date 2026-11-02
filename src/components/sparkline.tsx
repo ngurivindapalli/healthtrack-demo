@@ -9,7 +9,7 @@ export function Sparkline({
   values: Array<number | null>;
   className?: string;
   invert?: boolean;
-  tone?: "pine" | "one" | "muted";
+  tone?: "pine" | "one" | "muted" | "sleep" | "heart" | "move" | "exercise" | "mind";
 }) {
   const numeric = values.filter((v): v is number => typeof v === "number");
   if (numeric.length < 2) {
@@ -31,7 +31,21 @@ export function Sparkline({
     .filter(Boolean)
     .join(" ");
   const color =
-    tone === "one" ? "var(--one)" : tone === "muted" ? "var(--muted)" : "var(--pine)";
+    tone === "one"
+      ? "var(--one)"
+      : tone === "muted"
+        ? "var(--muted)"
+        : tone === "sleep"
+          ? "var(--sleep)"
+          : tone === "heart"
+            ? "var(--heart)"
+            : tone === "move"
+              ? "var(--move)"
+              : tone === "exercise"
+                ? "var(--exercise)"
+                : tone === "mind"
+                  ? "var(--mind)"
+                  : "var(--pine)";
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}

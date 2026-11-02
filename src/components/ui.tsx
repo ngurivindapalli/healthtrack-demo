@@ -12,17 +12,16 @@ export function Button({
   const styles = {
     primary:
       "bg-pine text-surface hover:bg-pine-2 disabled:bg-sage disabled:text-surface",
-    secondary:
-      "bg-surface text-ink hairline hover:bg-paper-2",
+    secondary: "bg-surface text-ink hairline hover:bg-paper-2",
     ghost: "bg-transparent text-ink-soft hover:bg-paper-2 hover:text-ink",
-    one: "bg-one text-surface hover:bg-one-ink",
-    danger: "bg-attention text-surface hover:opacity-90",
+    one: "bg-one text-white hover:bg-one-ink",
+    danger: "bg-attention text-white hover:opacity-90",
   } as const;
   return (
     <button
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:cursor-not-allowed",
         styles[variant],
         className,
       )}
@@ -43,7 +42,7 @@ export function Card({
   return (
     <section
       className={cn(
-        "rounded-2xl bg-surface p-5 shadow-[0_1px_0_rgba(20,36,28,0.04)] hairline",
+        "rounded-2xl bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hairline",
         className,
       )}
     >
@@ -54,7 +53,7 @@ export function Card({
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+    <p className="text-[13px] font-medium text-muted">
       {children}
     </p>
   );

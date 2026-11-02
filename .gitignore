@@ -39,6 +39,10 @@ yarn-error.log*
 /docs/_pdf_extract.txt
 /docs/_pdf_clean.txt
 
+# local database and deploy scratch
+/data/
+.deploy-cache/
+
 # vercel
 .vercel
 

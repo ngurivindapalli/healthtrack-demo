@@ -8,9 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "npx --yes tsx --test src/lib/services/wearable.test.ts"
+    "test": "npx --yes tsx --test src/lib/services/health-data.test.ts src/lib/services/v2-trackers.test.ts src/lib/services/production-readiness.test.ts",
+    "db:migrate": "npx --yes tsx src/db/cli.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "better-auth": "^1.7.13",
+    "drizzle-orm": "^0.45.4",
     "lucide-react": "^1.58.0",
     "next": "16.4.2",
     "react": "19.3.0",
@@ -21,6 +25,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",

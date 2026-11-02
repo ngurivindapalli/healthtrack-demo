@@ -78,7 +78,7 @@ export default function StatusDetailPage() {
           {status.dataQuality.coverageDays} valid days · {status.dataQuality.missingLast7} missing in last 7 · sources {status.dataQuality.sources.join(", ") || "none"}
           {status.dataQuality.recencyHours == null
             ? " · no watch sync recorded yet."
-            : ` · about ${Math.round(status.dataQuality.recencyHours)} hours since the last Pulse Watch sync.`}
+            : ` · about ${Math.round(status.dataQuality.recencyHours)} hours since the last companion sync.`}
         </p>
         <p className="mt-3 text-sm text-ink-soft">
           My Baseline is the primary comparison. Peer and general references stay secondary and are shown on each trend.

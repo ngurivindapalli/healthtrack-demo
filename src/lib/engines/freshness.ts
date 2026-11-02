@@ -77,6 +77,45 @@ export function watchFreshness(
   };
 }
 
+export function companionFreshness(
+  connected: boolean,
+  lastSyncAt: string | null,
+  nowIso: string,
+): FreshnessView {
+  if (!connected) {
+    return {
+      kind: "disconnected",
+      label: "No companion app connected",
+      hoursAgo: null,
+      lastSyncAt: null,
+    };
+  }
+  if (!lastSyncAt) {
+    return {
+      kind: "never",
+      label: "Connected, no measurements yet",
+      hoursAgo: null,
+      lastSyncAt: null,
+    };
+  }
+  const hoursAgo = hoursBetween(lastSyncAt, nowIso);
+  if (hoursAgo >= FRESHNESS_HOURS) {
+    const rounded = Math.max(1, Math.round(hoursAgo));
+    return {
+      kind: "needs_update",
+      label: `Last synced ${rounded} hour${rounded === 1 ? "" : "s"} ago`,
+      hoursAgo,
+      lastSyncAt,
+    };
+  }
+  return {
+    kind: "up_to_date",
+    label: "Companion data is current",
+    hoursAgo,
+    lastSyncAt,
+  };
+}
+
 export function isFresh(watch: WatchState, nowIso: string): boolean {
   return watchFreshness(watch, nowIso).kind === "up_to_date";
 }
