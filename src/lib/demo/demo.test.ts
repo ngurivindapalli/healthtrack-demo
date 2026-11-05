@@ -10,9 +10,10 @@ describe("demo mode", () => {
     assert.equal(demoRuntime({ NEXT_PUBLIC_DEMO_MODE: "true" }), "on");
   });
 
-  it("fails closed when a production deployment requests demo mode", () => {
-    assert.equal(demoRuntime({ NEXT_PUBLIC_DEMO_MODE: "true", VERCEL_ENV: "production" }), "forbidden");
+  it("runs on a production deployment only when demo mode is explicitly enabled", () => {
+    assert.equal(demoRuntime({ NEXT_PUBLIC_DEMO_MODE: "true", VERCEL_ENV: "production" }), "on");
     assert.equal(demoRuntime({ NEXT_PUBLIC_DEMO_MODE: "true", VERCEL_ENV: "preview" }), "on");
+    assert.equal(demoRuntime({ VERCEL_ENV: "production" }), "off");
   });
 
   it("scores the synthetic dataset with the existing wellness algorithm", () => {

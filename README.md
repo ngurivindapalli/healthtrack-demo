@@ -23,7 +23,7 @@ npm run dev:demo
 
 This sets `NEXT_PUBLIC_DEMO_MODE=true` for that process only. Open the site and choose **Explore Demo**. Sample data stays in this browser. **Reset Demo** restores it. No database URL, auth secret, or email provider is required.
 
-`npm run build:demo` builds that same mode. Demo Mode refuses to run when `VERCEL_ENV=production`. The normal `npm run dev` path is unchanged and still uses the local database.
+`npm run build:demo` builds that same mode. The public Vercel deployment uses that same explicit flag because it has no database. The normal `npm run dev` path is unchanged and still uses the local database.
 
 Other scripts:
 

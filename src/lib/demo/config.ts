@@ -7,12 +7,10 @@ export const DEMO_USER = {
 
 export type DemoRuntime = "off" | "on" | "forbidden";
 
-/** Demo Mode is on only when it is explicitly requested and this deployment is not production. */
+/** Demo Mode is on only when NEXT_PUBLIC_DEMO_MODE is exactly "true". */
 export function demoRuntime(env?: { NEXT_PUBLIC_DEMO_MODE?: string; VERCEL_ENV?: string }): DemoRuntime {
   const source = env ?? process.env;
-  const requested = source.NEXT_PUBLIC_DEMO_MODE === "true";
-  if (!requested) return "off";
-  if (source.VERCEL_ENV === "production") return "forbidden";
+  if (source.NEXT_PUBLIC_DEMO_MODE !== "true") return "off";
   return "on";
 }
 
