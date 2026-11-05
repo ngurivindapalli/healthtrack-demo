@@ -4,6 +4,7 @@ import { createClient, type Client } from "@libsql/client";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import { authSchema } from "@/db/schema";
 import { MIGRATIONS } from "@/db/migrations";
+import { demoRuntime } from "@/lib/demo/config";
 import { assertProductionAuth, assertProductionDatabase } from "@/lib/production-env";
 
 export type AppDatabase = LibSQLDatabase<typeof authSchema>;
@@ -111,6 +112,11 @@ export function shouldAutoMigrate(env: NodeJS.ProcessEnv = process.env): boolean
 }
 
 export async function getDatabase(): Promise<{ client: Client; db: AppDatabase }> {
+  if (demoRuntime() !== "off") {
+    throw new Error(demoRuntime() === "forbidden"
+      ? "Demo Mode is disabled on production deployments."
+      : "Database access is disabled in Demo Mode.");
+  }
   if (!singleton) {
     const url = resolveDatabaseUrl();
     assertProductionAuth();

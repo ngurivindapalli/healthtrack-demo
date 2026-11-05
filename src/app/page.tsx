@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { ArrowRight, HeartPulse, LockKeyhole } from "lucide-react";
 import { Button, Card } from "@/components/ui";
+import { refreshWorkspace, useDemo } from "@/lib/store";
+import { useRouter } from "next/navigation";
 
 export default function EntryPage() {
+  const { demoMode } = useDemo();
+  const router = useRouter();
   return (
     <div className="min-h-full bg-paper">
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5 py-10">
@@ -31,13 +35,30 @@ export default function EntryPage() {
               Sign in
             </Button>
           </Link>
+          {demoMode ? (
+            <Button
+              variant="secondary"
+              className="w-full py-3"
+              onClick={() => {
+                void fetch("/api/demo/session", { method: "POST" }).then(async (response) => {
+                  if (!response.ok) return;
+                  await refreshWorkspace();
+                  router.push("/today");
+                });
+              }}
+            >
+              Explore Demo
+            </Button>
+          ) : null}
         </div>
 
         <Card className="mt-8">
           <div className="flex items-start gap-3">
             <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
             <p className="text-sm leading-6 text-ink-soft">
-              Your profile and health records are stored on the server for your account. This site does not read Apple Health. The companion mobile app is not available yet, so Today stays empty until that app uploads measurements.
+              {demoMode
+                ? "This demonstration uses sample data saved only in this browser. It does not create an account, and it does not read Apple Health."
+                : "Your profile and health records are stored on the server for your account. This site does not read Apple Health. The companion mobile app is not available yet, so Today stays empty until that app uploads measurements."}
             </p>
           </div>
         </Card>

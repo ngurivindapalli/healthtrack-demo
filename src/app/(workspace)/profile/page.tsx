@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ScoringGoalsFields } from "@/components/scoring-goals-fields";
 import { Button, Card, Eyebrow, Field, TextInput } from "@/components/ui";
+import { downloadDemoExport } from "@/lib/demo/browser";
 import { useDemo } from "@/lib/store";
 
 const GOAL_OPTIONS = [
@@ -16,7 +17,7 @@ const GOAL_OPTIONS = [
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { state, patchProfile, patchState, resetDemo, deleteHealthData } = useDemo();
+  const { state, patchProfile, patchState, resetDemo, resetSampleData, deleteHealthData, demoMode } = useDemo();
   const connected = (state.devices ?? []).filter((device) => device.status === "active").length;
 
   return (
@@ -109,12 +110,21 @@ export default function ProfilePage() {
             <p className="mt-1 text-sm text-ink-soft">Optional. Off until you opt in, and separate from the Wellness Tracker.</p>
           </Card>
         </Link>
-        <a href="/api/v1/me/export">
-          <Card className="h-full hover:bg-paper">
-            <p className="font-semibold">Export my data</p>
-            <p className="mt-1 text-sm text-ink-soft">Download a JSON copy of your profile and saved logs.</p>
-          </Card>
-        </a>
+        {demoMode ? (
+          <button type="button" className="text-left" onClick={() => downloadDemoExport()}>
+            <Card className="h-full hover:bg-paper">
+              <p className="font-semibold">Export sample data</p>
+              <p className="mt-1 text-sm text-ink-soft">Download the sample profile stored in this browser.</p>
+            </Card>
+          </button>
+        ) : (
+          <a href="/api/v1/me/export">
+            <Card className="h-full hover:bg-paper">
+              <p className="font-semibold">Export my data</p>
+              <p className="mt-1 text-sm text-ink-soft">Download a JSON copy of your profile and saved logs.</p>
+            </Card>
+          </a>
+        )}
         <Link href="/profile/privacy">
           <Card className="h-full hover:bg-paper">
             <p className="font-semibold">Privacy & consent</p>
@@ -154,6 +164,11 @@ export default function ProfilePage() {
           <Button
             variant="secondary"
             onClick={() => {
+              if (demoMode) {
+                if (!window.confirm("Clear the sample account stored in this browser?")) return;
+                void resetSampleData().then(() => resetDemo()).then(() => router.push("/"));
+                return;
+              }
               const password = window.prompt("Enter your password to delete this account.");
               if (!password) return;
               void fetch("/api/auth/delete-user", {

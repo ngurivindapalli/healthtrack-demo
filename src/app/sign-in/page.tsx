@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import { Button, Card, Field, TextInput } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 import { safeNextPath } from "@/lib/links";
-import { refreshWorkspace } from "@/lib/store";
+import { refreshWorkspace, useDemo } from "@/lib/store";
 
 function SignInForm() {
   const router = useRouter();
@@ -18,6 +18,7 @@ function SignInForm() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [google, setGoogle] = useState(false);
+  const { demoMode } = useDemo();
 
   useEffect(() => {
     void fetch("/api/v1/config")
@@ -55,6 +56,25 @@ function SignInForm() {
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
           </Button>
+          {demoMode ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => {
+                void fetch("/api/demo/session", { method: "POST" }).then(async (response) => {
+                  if (!response.ok) {
+                    setError("Demo Mode is not available on this server.");
+                    return;
+                  }
+                  await refreshWorkspace();
+                  router.push(next);
+                });
+              }}
+            >
+              Explore Demo
+            </Button>
+          ) : null}
           {google ? (
             <a
               href={authClient.signIn.socialUrl({ provider: "google", callbackURL: "/today" })}

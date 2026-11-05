@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isDemoMode } from "@/lib/demo/config";
 import { DemoProvider } from "@/lib/store";
 import "./globals.css";
 
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full font-sans">
-        <DemoProvider>{children}</DemoProvider>
+        <DemoProvider demoMode={isDemoMode()}>{children}</DemoProvider>
       </body>
     </html>
   );

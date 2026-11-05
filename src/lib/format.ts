@@ -19,6 +19,12 @@ export function formatShortDate(isoDate: string): string {
   return SHORT_DATE.format(new Date(`${isoDate}T12:00:00Z`));
 }
 
+/** Whole number for display. Scoring and storage keep the original value. */
+export function formatDisplayedScore(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return String(Math.round(value));
+}
+
 export function formatHours(hours: number): string {
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);

@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { getDatabase } from "@/db";
 import { authSchema } from "@/db/schema";
+import { demoRuntime } from "@/lib/demo/config";
 import { emailDeliveryConfigured, googleSignInConfigured, sendTransactionalEmail } from "@/lib/email";
 import { assertSafeEmailLink } from "@/lib/links";
 import { ensureProfile, deleteHealthData } from "@/lib/services/workspace";
@@ -16,14 +17,13 @@ function authSecret(): string {
   return "dev-only-healthtrack-secret-not-for-production";
 }
 
-const databasePromise = getDatabase();
-
-export const auth = betterAuth({
+function createAuth(db: Awaited<ReturnType<typeof getDatabase>>["db"]) {
+  return betterAuth({
   secret: authSecret(),
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   trustedOrigins: [new URL(process.env.BETTER_AUTH_URL || "http://localhost:3000").origin],
   database: drizzleAdapter(
-    (await databasePromise).db,
+    db,
     { provider: "sqlite", schema: authSchema, camelCase: true },
   ),
   emailAndPassword: {
@@ -93,4 +93,17 @@ export const auth = betterAuth({
     useSecureCookies: process.env.NODE_ENV === "production",
   },
   plugins: [nextCookies()],
-});
+  });
+}
+
+let authSingleton: ReturnType<typeof createAuth> | null = null;
+
+export async function getAuth() {
+  if (demoRuntime() !== "off") {
+    throw new Error("Better Auth is disabled while Demo Mode is requested.");
+  }
+  if (authSingleton) return authSingleton;
+  const { db } = await getDatabase();
+  authSingleton = createAuth(db);
+  return authSingleton;
+}

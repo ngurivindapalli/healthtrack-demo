@@ -11,6 +11,7 @@ import {
 import { createBlankCustomState } from "@/lib/data/ram";
 import { buildAppModel, type AppModel } from "@/lib/engines/view-model";
 import { authClient } from "@/lib/auth-client";
+import { installDemoFetch, resetDemoData } from "@/lib/demo/browser";
 import { answerCoach, seedCoachWelcome } from "@/lib/services/coach";
 import type { WorkspacePayload } from "@/lib/services/workspace";
 import { EMPTY_SCORING_GOALS, EMPTY_STARTING_BASELINES, type CoachMessage, type DemoState, type Profile } from "@/lib/types";
@@ -20,7 +21,9 @@ interface StoreValue {
   model: AppModel;
   ready: boolean;
   signedIn: boolean;
+  demoMode: boolean;
   resetDemo: () => Promise<void>;
+  resetSampleData: () => Promise<void>;
   deleteHealthData: () => Promise<void>;
   patchState: (patch: Partial<DemoState>) => void;
   patchProfile: (patch: Partial<Profile>) => void;
@@ -158,7 +161,8 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-export function DemoProvider({ children }: { children: React.ReactNode }) {
+export function DemoProvider({ demoMode, children }: { demoMode: boolean; children: React.ReactNode }) {
+  if (demoMode && typeof window !== "undefined") installDemoFetch();
   const state = useSyncExternalStore(subscribe, readClientState, () => SERVER_SNAPSHOT);
   const ready = useSyncExternalStore(subscribe, () => hydrated, () => false);
   const signedInNow = useSyncExternalStore(subscribe, () => signedIn, () => false);
@@ -173,12 +177,23 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetDemo = useCallback(async () => {
-    await authClient.signOut();
+    if (demoMode) await fetch("/api/demo/session", { method: "DELETE" });
+    else await authClient.signOut();
     signedIn = false;
     hydrated = true;
     clientState = accountState();
     emit();
-  }, []);
+  }, [demoMode]);
+
+  const resetSampleData = useCallback(async () => {
+    if (!demoMode) return;
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    resetDemoData();
+    await refreshWorkspace();
+  }, [demoMode]);
 
   const deleteHealthData = useCallback(async () => {
     await fetch("/api/v1/me/health-data", { method: "DELETE" });
@@ -384,7 +399,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       model,
       ready,
       signedIn: signedInNow,
+      demoMode,
       resetDemo,
+      resetSampleData,
       deleteHealthData,
       patchState,
       patchProfile,
@@ -405,7 +422,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       model,
       ready,
       signedInNow,
+      demoMode,
       resetDemo,
+      resetSampleData,
       deleteHealthData,
       patchState,
       patchProfile,
@@ -423,7 +442,32 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     ],
   );
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={value}>
+      {demoMode ? (
+        <div className="border-b border-line bg-surface px-4 py-3 text-sm text-ink-soft">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+            <p>
+              <span className="font-semibold text-ink">Demo Mode.</span>{" "}
+              This is a demonstration using sample data. Changes are saved only in this browser.
+            </p>
+            <button
+              type="button"
+              className="rounded-xl bg-paper px-3 py-1.5 text-sm font-semibold text-ink hairline"
+              onClick={() => {
+                void resetSampleData().then(() => {
+                  window.location.reload();
+                });
+              }}
+            >
+              Reset Demo
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {children}
+    </StoreContext.Provider>
+  );
 }
 
 export function useDemo() {
