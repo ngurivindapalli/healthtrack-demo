@@ -1,6 +1,3 @@
-import { answerCoach } from "@/lib/services/coach";
-import { buildAppModel } from "@/lib/engines/view-model";
-import { createBlankCustomState } from "@/lib/data/ram";
 import { assessDemoData, createDemoData, type DemoData, type DemoLog } from "@/lib/demo/data";
 import type { WorkspacePayload } from "@/lib/services/workspace";
 
@@ -170,7 +167,7 @@ export function downloadDemoExport() {
 export async function handleDemoFetch(request: Request): Promise<Response | null> {
   const url = new URL(request.url, typeof window === "undefined" ? "http://localhost" : window.location.origin);
   const path = url.pathname;
-  if (path === "/api/demo/session" || path === "/api/v1/config") return null;
+  if (path === "/api/demo/session" || path === "/api/v1/config" || path === "/api/coach") return null;
   if (!path.startsWith("/api/")) return null;
   const data = loadDemoData();
   const method = request.method.toUpperCase();
@@ -273,18 +270,6 @@ export async function handleDemoFetch(request: Request): Promise<Response | null
     if (!saved.ok) return error(400, "invalid_request", saved.message);
     saveDemoData(data);
     return json({ id: saved.id });
-  }
-  if (path === "/api/coach" && method === "POST") {
-    const body = (await request.json()) as { question?: string; fallback?: { content?: string } };
-    if (body.fallback?.content) return json({ content: body.fallback.content, usedLiveModel: false });
-    const state = createBlankCustomState();
-    state.mode = "account";
-    state.profile = data.workspace.profile;
-    state.onboardingComplete = data.workspace.onboardingComplete;
-    state.persistedObservations = data.workspace.observations;
-    state.scoringGoals = data.workspace.scoringGoals;
-    const reply = answerCoach(String(body.question ?? ""), state, buildAppModel(state));
-    return json({ content: reply.content, usedLiveModel: false });
   }
   if (path === "/api/auth/sign-out") return json({ ok: true, demo: true });
   if (path.startsWith("/api/auth/")) {

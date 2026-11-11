@@ -57,7 +57,7 @@ Health check: `GET /api/health`.
 | Client cache | `src/lib/store.tsx` | Hydrates from `GET /api/v1/me/workspace` |
 | Baseline / status | `src/lib/engines/baseline.ts`, `status.ts` | Deterministic, versioned `status-engine@0.1-demo` |
 | Behavior ranking | `src/lib/engines/behaviors.ts` | Today’s ONE and Repeat ONE |
-| Coach | `src/lib/services/coach.ts`, `src/app/api/coach/route.ts` | Deterministic wording; optional OpenAI rewrite |
+| Coach | `src/lib/services/coach.ts`, `src/app/api/coach/route.ts` | Server-side Groq coach, with a local fallback when care is redirected |
 | Contract | `docs/openapi/v1.yaml` | Companion API |
 
 The consumer sees **Thriving / Stable / Shifting / Needs Attention**, not a 0–100 health score.
@@ -80,7 +80,7 @@ The consumer sees **Thriving / Stable / Shifting / Needs Attention**, not a 0–
 - Email verification and password reset until `RESEND_API_KEY` and `EMAIL_FROM` are set
 - Google sign-in until Google OAuth credentials are set
 - Lab PDF parsing
-- Live LLM wording unless `OPENAI_API_KEY` is set
+- Live coach replies unless `GROQ_API_KEY` is set on the server
 
 HealthTrack 1.0 does not diagnose, treat, prevent, or detect disease. Thresholds are demo calibrations; the blueprint states they are not clinically validated.
 
@@ -96,8 +96,8 @@ See `.env.example`.
 | `DATABASE_AUTH_TOKEN` | Remote DB | libSQL auth token |
 | `RESEND_API_KEY`, `EMAIL_FROM` | No | Verification and password reset |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | No | Google sign-in |
-| `OPENAI_API_KEY` | No | Optional coach wording |
-| `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` |
+| `GROQ_API_KEY` | No | Server-only coach key. The coach reports that it is unconfigured without it |
+| `GROQ_MODEL` | No | Defaults to `openai/gpt-oss-120b` |
 
 Never put secrets in client code. Database and provider credentials stay on the server.
 

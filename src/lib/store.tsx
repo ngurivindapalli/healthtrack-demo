@@ -13,6 +13,7 @@ import { buildAppModel, type AppModel } from "@/lib/engines/view-model";
 import { authClient } from "@/lib/auth-client";
 import { installDemoFetch, resetDemoData } from "@/lib/demo/browser";
 import { answerCoach, seedCoachWelcome } from "@/lib/services/coach";
+import { buildCoachContext } from "@/lib/services/coach-context";
 import type { WorkspacePayload } from "@/lib/services/workspace";
 import { EMPTY_SCORING_GOALS, EMPTY_STARTING_BASELINES, type CoachMessage, type DemoState, type Profile } from "@/lib/types";
 
@@ -352,29 +353,38 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
       }));
 
       let reply = answerCoach(question, state, model);
-      try {
-        const res = await fetch("/api/coach", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            question,
-            fallback: reply,
-          }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { content?: string; usedLiveModel?: boolean };
-          if (data.content) {
+      if (!model.status.safety.redirectToCare) {
+        const history = state.coachMessages
+          .filter((message) => message.role === "user" || message.role === "coach")
+          .slice(-8)
+          .map((message) => ({ role: message.role, content: message.content }));
+        try {
+          const res = await fetch("/api/coach", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              question,
+              history,
+              context: buildCoachContext(question, state, model),
+            }),
+          });
+          const data = (await res.json()) as { content?: string; error?: { message?: string } };
+          if (res.ok && data.content) {
+            reply = { content: data.content, sources: ["Stored measurements for this week"], safetyFlag: false };
+          } else {
             reply = {
-              ...reply,
-              content: data.content,
-              sources: data.usedLiveModel
-                ? [...reply.sources, "Optional live model wording"]
-                : reply.sources,
+              content: data.error?.message ?? "The wellness coach couldn't answer just now. Please try again.",
+              sources: [],
+              safetyFlag: false,
             };
           }
+        } catch {
+          reply = {
+            content: "The wellness coach could not be reached. Please try again.",
+            sources: [],
+            safetyFlag: false,
+          };
         }
-      } catch {
-        // Local engine is the source of truth.
       }
 
       const coachMsg: CoachMessage = {
