@@ -4,6 +4,14 @@ import { describe, it } from "node:test";
 import { createBlankCustomState } from "@/lib/data/ram";
 import { createDemoData } from "@/lib/demo/data";
 import { buildAppModel } from "@/lib/engines/view-model";
+import { answerCoach } from "@/lib/services/coach";
+import {
+  beginCoachRequest,
+  coachRequestIsCurrent,
+  invalidateCoachRequests,
+  presentCoachReply,
+  withoutCoachMessages,
+} from "@/lib/services/coach-chat";
 import { buildCoachContext } from "@/lib/services/coach-context";
 import { buildGroqMessages, completeCoachTurn, sanitizeHistory } from "@/lib/services/coach-groq";
 
@@ -120,5 +128,60 @@ describe("wellness coach", () => {
     }
     const route = readFileSync("src/app/api/coach/route.ts", "utf8");
     assert.equal(route.includes("GROQ_API_KEY"), true);
+    assert.match(route, /requireUser\(/);
+    assert.match(route, /rateLimit\(/);
+    assert.match(route, /sharedAllowance\(/);
+  });
+
+  it("clears chat history without touching health records or a later reply", () => {
+    const { state } = demoModel();
+    const withChat = {
+      ...state,
+      coachMessages: [
+        { id: "u1", role: "user" as const, content: "How did I sleep?", createdAt: "2026-11-11T12:00:00Z" },
+        { id: "c1", role: "coach" as const, content: "Most nights were around seven and a half hours.", createdAt: "2026-11-11T12:00:01Z" },
+      ],
+    };
+    const cleared = withoutCoachMessages(withChat);
+    assert.deepEqual(cleared.coachMessages, []);
+    assert.equal(cleared.persistedObservations.length, state.persistedObservations.length);
+    assert.equal(cleared.persistedObservations[0]?.steps, state.persistedObservations[0]?.steps);
+    const restored = JSON.parse(JSON.stringify(cleared)) as typeof cleared;
+    assert.deepEqual(restored.coachMessages, []);
+    const followUp = buildGroqMessages("How am I doing?", restored.coachMessages, "sleep 7h 35m");
+    assert.equal(followUp.some((message) => message.content.includes("seven and a half")), false);
+
+    const requestId = beginCoachRequest();
+    invalidateCoachRequests();
+    assert.equal(coachRequestIsCurrent(requestId), false);
+    const nextId = beginCoachRequest();
+    assert.equal(coachRequestIsCurrent(nextId), true);
+  });
+
+  it("renders ordinary replies as paragraphs and keeps an explicit list", () => {
+    const ordinary = presentCoachReply("**Sleep** was steady.\n\nYou got about 7h 35m — a solid night.\n\n- Steps were fine\n- Heart rate was steady", "How am I doing?");
+    assert.equal(ordinary.includes("**"), false);
+    assert.match(ordinary, /Sleep was steady\.\n\nYou got about 7h 35m — a solid night\./);
+    assert.match(ordinary, /Steps were fine Heart rate was steady/);
+    const listed = presentCoachReply("1. Wind down\n2. Keep the walk", "Can you list the steps?");
+    assert.match(listed, /1\. Wind down/);
+    assert.equal(presentCoachReply(ordinary, "How am I doing?"), ordinary);
+  });
+
+  it("keeps the existing safety reply for a medical worry", () => {
+    const { state, model } = demoModel();
+    const reply = answerCoach("Should I be worried?", state, model);
+    assert.equal(reply.safetyFlag, true);
+    assert.match(reply.content, /does not diagnose/);
+    assert.match(reply.content, /clinician|care/i);
+  });
+
+  it("shows clear chat only as a confirmed action in the existing coach page", () => {
+    const page = readFileSync("src/app/(workspace)/coach/page.tsx", "utf8");
+    assert.match(page, /Clear chat/);
+    assert.match(page, /Clear this conversation\? This will remove your current chat history\./);
+    assert.match(page, /Cancel/);
+    assert.match(page, /hasConversation/);
+    assert.equal(page.includes("Stored measurements for this week"), false);
   });
 });

@@ -13,6 +13,7 @@ import { buildAppModel, type AppModel } from "@/lib/engines/view-model";
 import { authClient } from "@/lib/auth-client";
 import { installDemoFetch, resetDemoData } from "@/lib/demo/browser";
 import { answerCoach, seedCoachWelcome } from "@/lib/services/coach";
+import { beginCoachRequest, coachRequestIsCurrent, invalidateCoachRequests, withoutCoachMessages } from "@/lib/services/coach-chat";
 import { buildCoachContext } from "@/lib/services/coach-context";
 import type { WorkspacePayload } from "@/lib/services/workspace";
 import { EMPTY_SCORING_GOALS, EMPTY_STARTING_BASELINES, type CoachMessage, type DemoState, type Profile } from "@/lib/types";
@@ -36,6 +37,7 @@ interface StoreValue {
   ) => void;
   saveReflection: (note: string, energy: number, stress: number) => void;
   askCoach: (question: string) => Promise<void>;
+  clearCoach: () => void;
   setContext: (patch: Partial<DemoState["context"]>) => void;
   setCheckIn: (energy: number, stress: number) => void;
   logAdherence: (behaviorId: string, kind: "completed" | "accepted") => void;
@@ -339,14 +341,24 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
     }));
   }, []);
 
+  const clearCoach = useCallback(() => {
+    invalidateCoachRequests();
+    setState((prev) => withoutCoachMessages(prev));
+  }, []);
+
   const askCoach = useCallback(
     async (question: string) => {
+      const requestId = beginCoachRequest();
       const userMsg: CoachMessage = {
         id: `u-${Date.now()}`,
         role: "user",
         content: question,
         createdAt: new Date().toISOString(),
       };
+      const history = state.coachMessages
+        .filter((message) => message.role === "user" || message.role === "coach")
+        .slice(-8)
+        .map((message) => ({ role: message.role, content: message.content }));
       setState((prev) => ({
         ...prev,
         coachMessages: [...prev.coachMessages, userMsg],
@@ -354,10 +366,6 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
 
       let reply = answerCoach(question, state, model);
       if (!model.status.safety.redirectToCare) {
-        const history = state.coachMessages
-          .filter((message) => message.role === "user" || message.role === "coach")
-          .slice(-8)
-          .map((message) => ({ role: message.role, content: message.content }));
         try {
           const res = await fetch("/api/coach", {
             method: "POST",
@@ -370,7 +378,7 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
           });
           const data = (await res.json()) as { content?: string; error?: { message?: string } };
           if (res.ok && data.content) {
-            reply = { content: data.content, sources: ["Stored measurements for this week"], safetyFlag: false };
+            reply = { content: data.content, sources: [], safetyFlag: false };
           } else {
             reply = {
               content: data.error?.message ?? "The wellness coach couldn't answer just now. Please try again.",
@@ -386,6 +394,7 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
           };
         }
       }
+      if (!coachRequestIsCurrent(requestId)) return;
 
       const coachMsg: CoachMessage = {
         id: `c-${Date.now()}`,
@@ -395,10 +404,12 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
         sources: reply.sources,
         safetyFlag: reply.safetyFlag,
       };
-      setState((prev) => ({
-        ...prev,
-        coachMessages: [...prev.coachMessages, coachMsg],
-      }));
+      setState((prev) => {
+        if (!coachRequestIsCurrent(requestId) || !prev.coachMessages.some((message) => message.id === userMsg.id)) {
+          return prev;
+        }
+        return { ...prev, coachMessages: [...prev.coachMessages, coachMsg] };
+      });
     },
     [model, state],
   );
@@ -420,6 +431,7 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
       setCommitment,
       saveReflection,
       askCoach,
+      clearCoach,
       setContext,
       setCheckIn,
       logAdherence,
@@ -443,6 +455,7 @@ export function DemoProvider({ demoMode, children }: { demoMode: boolean; childr
       setCommitment,
       saveReflection,
       askCoach,
+      clearCoach,
       setContext,
       setCheckIn,
       logAdherence,

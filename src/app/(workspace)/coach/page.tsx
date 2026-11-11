@@ -1,33 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 import { Button, Card, Eyebrow, TextArea } from "@/components/ui";
 import { coachSuggestions } from "@/lib/services/coach";
 import { useDemo, welcomeIfEmpty } from "@/lib/store";
 
 export default function CoachPage() {
-  const { state, model, askCoach, rateCoach } = useDemo();
+  const { state, model, askCoach, clearCoach, rateCoach } = useDemo();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const requestRef = useRef(0);
   const messages = welcomeIfEmpty(state.coachMessages, model);
+  const hasConversation = state.coachMessages.length > 0;
 
   async function send(text: string) {
     const q = text.trim();
     if (!q || busy) return;
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     setBusy(true);
     setDraft("");
     try {
       await askCoach(q);
     } finally {
-      setBusy(false);
+      if (requestRef.current === requestId) setBusy(false);
     }
+  }
+
+  function clearConversation() {
+    requestRef.current += 1;
+    setBusy(false);
+    setConfirmClear(false);
+    clearCoach();
   }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header>
-        <Eyebrow>AI Health Coach</Eyebrow>
-        <h1 className="display mt-1 text-3xl">Why, and what next?</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Eyebrow>AI Health Coach</Eyebrow>
+            <h1 className="display mt-1 text-3xl">Why, and what next?</h1>
+          </div>
+          {hasConversation ? (
+            <button
+              type="button"
+              className="mt-1 inline-flex shrink-0 items-center gap-1.5 text-xs text-muted hover:text-ink"
+              onClick={() => setConfirmClear(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              Clear chat
+            </button>
+          ) : null}
+        </div>
+        {confirmClear ? (
+          <Card className="mt-3">
+            <p className="text-sm">Clear this conversation? This will remove your current chat history.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setConfirmClear(false)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={clearConversation}>
+                Clear
+              </Button>
+            </div>
+          </Card>
+        ) : null}
         <p className="mt-2 text-sm text-ink-soft">
           Context-aware, priority-preserving, non-diagnostic. Default answers come from the same status and ranking engines as Today. An optional live model can rewrite wording if an API key is configured — it is not required.
         </p>
