@@ -30,14 +30,49 @@ function at(day: string, hours: number, minutes: number): string {
   return `${day}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00.000Z`;
 }
 
+type DemoDay = {
+  sleepHours: number;
+  bedtimeHour: number;
+  bedtimeMinute: number;
+  wakeHour: number;
+  wakeMinute: number;
+  steps: number;
+  rhr: number;
+  hrv: number;
+  sleepEfficiency: number;
+  activeMinutes: number;
+  eveningWalkMinutes: number;
+  workoutMinutes: number | null;
+  workoutName: string | null;
+  energy: number;
+  stress: number;
+  fatigue: number;
+  soreness: number;
+  lastMealHour: number;
+  meals: Array<{ name: string; calories: number; hour: number; minute: number }>;
+  drinks: number[];
+};
+
+/** Seven days, oldest first. The last row is the current UTC day. */
+const DEMO_WEEK: DemoDay[] = [
+  { sleepHours: 7.42, bedtimeHour: 22, bedtimeMinute: 18, wakeHour: 5, wakeMinute: 43, steps: 7842, rhr: 67, hrv: 51, sleepEfficiency: 85, activeMinutes: 22, eveningWalkMinutes: 18, workoutMinutes: 20, workoutName: "Easy walk", energy: 6, stress: 4, fatigue: 3, soreness: 2, lastMealHour: 19, meals: [{ name: "Oatmeal", calories: 420, hour: 8, minute: 0 }, { name: "Chicken salad", calories: 640, hour: 12, minute: 30 }, { name: "Salmon and potatoes", calories: 680, hour: 19, minute: 0 }], drinks: [800, 1100] },
+  { sleepHours: 8.08, bedtimeHour: 22, bedtimeMinute: 5, wakeHour: 6, wakeMinute: 10, steps: 9215, rhr: 65, hrv: 58, sleepEfficiency: 89, activeMinutes: 34, eveningWalkMinutes: 28, workoutMinutes: 32, workoutName: "Brisk walk", energy: 7, stress: 3, fatigue: 2, soreness: 2, lastMealHour: 18.5, meals: [{ name: "Eggs and toast", calories: 480, hour: 7, minute: 40 }, { name: "Rice and vegetables", calories: 720, hour: 12, minute: 45 }, { name: "Stir fry", calories: 780, hour: 18, minute: 30 }], drinks: [900, 1400] },
+  { sleepHours: 6.67, bedtimeHour: 23, bedtimeMinute: 10, wakeHour: 5, wakeMinute: 50, steps: 5638, rhr: 70, hrv: 43, sleepEfficiency: 79, activeMinutes: 8, eveningWalkMinutes: 0, workoutMinutes: null, workoutName: null, energy: 5, stress: 6, fatigue: 5, soreness: 3, lastMealHour: 20.25, meals: [{ name: "Yogurt and fruit", calories: 380, hour: 8, minute: 20 }, { name: "Sandwich", calories: 540, hour: 13, minute: 0 }, { name: "Pizza and salad", calories: 700, hour: 20, minute: 15 }], drinks: [600, 900] },
+  { sleepHours: 7.83, bedtimeHour: 22, bedtimeMinute: 22, wakeHour: 6, wakeMinute: 12, steps: 10487, rhr: 64, hrv: 60, sleepEfficiency: 88, activeMinutes: 40, eveningWalkMinutes: 22, workoutMinutes: 38, workoutName: "Easy run", energy: 7, stress: 3, fatigue: 2, soreness: 4, lastMealHour: 19.25, meals: [{ name: "Oatmeal", calories: 510, hour: 7, minute: 50 }, { name: "Rice bowl", calories: 740, hour: 12, minute: 20 }, { name: "Chicken and rice", calories: 800, hour: 19, minute: 15 }], drinks: [1000, 1400] },
+  { sleepHours: 7.25, bedtimeHour: 22, bedtimeMinute: 48, wakeHour: 6, wakeMinute: 3, steps: 8326, rhr: 66, hrv: 54, sleepEfficiency: 84, activeMinutes: 28, eveningWalkMinutes: 20, workoutMinutes: 26, workoutName: "Easy walk", energy: 6, stress: 4, fatigue: 3, soreness: 2, lastMealHour: 18.75, meals: [{ name: "Eggs and toast", calories: 450, hour: 8, minute: 10 }, { name: "Turkey wrap", calories: 680, hour: 12, minute: 40 }, { name: "Bean chili", calories: 730, hour: 18, minute: 45 }], drinks: [850, 1150] },
+  { sleepHours: 8.33, bedtimeHour: 21, bedtimeMinute: 55, wakeHour: 6, wakeMinute: 15, steps: 11204, rhr: 63, hrv: 63, sleepEfficiency: 91, activeMinutes: 46, eveningWalkMinutes: 32, workoutMinutes: 42, workoutName: "Long walk", energy: 8, stress: 3, fatigue: 2, soreness: 3, lastMealHour: 19.5, meals: [{ name: "Bagel and eggs", calories: 520, hour: 8, minute: 5 }, { name: "Pasta", calories: 760, hour: 13, minute: 10 }, { name: "Steak and vegetables", calories: 840, hour: 19, minute: 30 }], drinks: [1100, 1500] },
+  { sleepHours: 7.58, bedtimeHour: 22, bedtimeMinute: 36, wakeHour: 6, wakeMinute: 11, steps: 7156, rhr: 67, hrv: 50, sleepEfficiency: 86, activeMinutes: 24, eveningWalkMinutes: 16, workoutMinutes: 22, workoutName: "Easy walk", energy: 6, stress: 4, fatigue: 3, soreness: 2, lastMealHour: 19, meals: [{ name: "Oatmeal", calories: 440, hour: 8, minute: 0 }, { name: "Soup and bread", calories: 660, hour: 12, minute: 30 }, { name: "Pasta and vegetables", calories: 710, hour: 19, minute: 0 }], drinks: [750, 1050] },
+];
+
 export function createDemoData(now = new Date()): DemoData {
   const today = utcDay(0, now);
+  const days = DEMO_WEEK.map((_, index) => utcDay(index - (DEMO_WEEK.length - 1), now));
   const profile: Profile = {
     displayName: "Demo User",
-    age: 34,
-    sex: "female",
-    heightCm: 168,
-    weightKg: 64,
+    age: 29,
+    sex: "male",
+    heightCm: 178,
+    weightKg: 78,
     goals: ["Steadier sleep", "A short daily walk"],
     dietaryPreferences: [],
     restrictions: [],
@@ -60,81 +95,59 @@ export function createDemoData(now = new Date()): DemoData {
     activityGoal: 30,
     sources: { hydration: "manual", sleep: "manual", activity: "manual" },
   };
-  const observations: DailyObservation[] = Array.from({ length: 14 }, (_, index) => {
-    const offset = index - 13;
-    return {
-      date: utcDay(offset, now),
-      sleepHours: 7.4 + (index % 3) * 0.2,
-      sleepEfficiency: null,
-      bedtimeMinutes: 22 * 60 + 20 + (index % 4) * 5,
-      rhr: null,
-      hrv: null,
-      steps: 6400 + index * 80,
-      activeMinutes: 28 + (index % 5),
-      energy: 6 + (index % 3),
-      stress: 3 + (index % 2),
-      lastMealHour: 19,
-      proteinBreakfast: null,
-      eveningWalkMinutes: 20,
-      sources: ["manual"],
-      travel: false,
-      illness: false,
-      unusualSchedule: false,
-    };
-  });
-  const meals = [
-    { id: "demo-meal-1", logged_on: today, name: "Oatmeal", notes: "Sample breakfast", calories: 420, protein_g: null, carbs_g: null, fat_g: null, source: "manual", source_record_id: null, created_at: at(today, 8, 0), updated_at: at(today, 8, 0) },
-    { id: "demo-meal-2", logged_on: today, name: "Rice and vegetables", notes: "Sample lunch", calories: 680, protein_g: null, carbs_g: null, fat_g: null, source: "manual", source_record_id: null, created_at: at(today, 12, 30), updated_at: at(today, 12, 30) },
-    { id: "demo-meal-3", logged_on: today, name: "Soup and bread", notes: "Sample dinner", calories: 640, protein_g: null, carbs_g: null, fat_g: null, source: "manual", source_record_id: null, created_at: at(today, 18, 45), updated_at: at(today, 18, 45) },
-  ];
-  const hydration = [
-    { id: "demo-water-1", logged_on: today, milliliters: 700, source: "manual", source_record_id: null, created_at: at(today, 9, 0) },
-    { id: "demo-water-2", logged_on: today, milliliters: 1100, source: "manual", source_record_id: null, created_at: at(today, 15, 0) },
-  ];
-  const sleep = [0, 1, 2, 3, 4].map((ago) => {
-    const startDay = utcDay(-ago - (ago === 0 ? 1 : 1), now);
-    const endDay = utcDay(-ago, now);
-    const minute = [30, 20, 40, 25, 35][ago] ?? 30;
-    const start = at(ago === 0 ? utcDay(-1, now) : startDay, 22, minute);
-    const end = at(endDay, 6, minute);
-    return {
-      id: `demo-sleep-${ago}`,
-      start_time: start,
-      end_time: end,
-      duration_hours: 8,
-      notes: "Sample night",
-      source: "manual",
-      source_record_id: null,
-      created_at: end,
-    };
-  });
-  const workouts = [0, 1, 2, 3, 4].map((ago) => ({
-    id: `demo-walk-${ago}`,
-    name: "Easy walk",
-    started_at: at(utcDay(-ago, now), 17, 0),
-    minutes: ago === 0 ? 32 : 30,
-    notes: "Sample activity",
-    source: "manual",
-    source_record_id: null,
-    created_at: at(utcDay(-ago, now), 17, 30),
+  const observations: DailyObservation[] = DEMO_WEEK.map((day, index) => ({
+    date: days[index] ?? today,
+    sleepHours: day.sleepHours,
+    sleepEfficiency: day.sleepEfficiency,
+    bedtimeMinutes: day.bedtimeHour * 60 + day.bedtimeMinute,
+    rhr: day.rhr,
+    hrv: day.hrv,
+    steps: day.steps,
+    activeMinutes: day.activeMinutes,
+    energy: day.energy,
+    stress: day.stress,
+    lastMealHour: day.lastMealHour,
+    proteinBreakfast: day.energy > 5,
+    eveningWalkMinutes: day.eveningWalkMinutes,
+    sources: ["manual"],
+    travel: false,
+    illness: false,
+    unusualSchedule: false,
   }));
-  const recovery = [{
-    id: "demo-recovery-today",
-    logged_on: today,
-    energy: 7,
-    fatigue: 3,
-    stress: 4,
-    soreness: 2,
-    notes: "Sample check-in",
-    updated_at: at(today, 20, 0),
-    created_at: at(today, 20, 0),
-  }];
+  const meals = DEMO_WEEK.flatMap((day, index) => day.meals.map((meal, mealIndex) => {
+    const loggedOn = days[index] ?? today;
+    const stamp = at(loggedOn, meal.hour, meal.minute);
+    return { id: `demo-meal-${index + 1}-${mealIndex + 1}`, logged_on: loggedOn, name: meal.name, notes: "Sample meal", calories: meal.calories, protein_g: null, carbs_g: null, fat_g: null, source: "manual", source_record_id: null, created_at: stamp, updated_at: stamp };
+  }));
+  const hydration = DEMO_WEEK.flatMap((day, index) => day.drinks.map((milliliters, drinkIndex) => {
+    const loggedOn = days[index] ?? today;
+    return { id: `demo-water-${index + 1}-${drinkIndex + 1}`, logged_on: loggedOn, milliliters, source: "manual", source_record_id: null, created_at: at(loggedOn, drinkIndex === 0 ? 9 : 15, 0) };
+  }));
+  const sleep = DEMO_WEEK.map((day, index) => {
+    const endDay = days[index] ?? today;
+    const startDay = utcDay(index - DEMO_WEEK.length, now);
+    const start = at(startDay, day.bedtimeHour, day.bedtimeMinute);
+    const end = at(endDay, day.wakeHour, day.wakeMinute);
+    return { id: `demo-sleep-${index + 1}`, start_time: start, end_time: end, duration_hours: day.sleepHours, notes: "Sample night", source: "manual", source_record_id: null, created_at: end };
+  });
+  const workouts = DEMO_WEEK.flatMap((day, index) => {
+    if (day.workoutMinutes == null || day.workoutName == null) return [];
+    const loggedOn = days[index] ?? today;
+    const started = at(loggedOn, 17, 0);
+    return [{ id: `demo-workout-${index + 1}`, name: day.workoutName, started_at: started, minutes: day.workoutMinutes, notes: "Sample activity", source: "manual", source_record_id: null, created_at: started }];
+  });
+  const recovery = DEMO_WEEK.map((day, index) => {
+    const loggedOn = days[index] ?? today;
+    const stamp = at(loggedOn, 20, 0);
+    return { id: `demo-recovery-${index + 1}`, logged_on: loggedOn, energy: day.energy, fatigue: day.fatigue, stress: day.stress, soreness: day.soreness, notes: "Sample check-in", updated_at: stamp, created_at: stamp };
+  });
+  const current = DEMO_WEEK[DEMO_WEEK.length - 1];
   return {
     workspace: {
       profile,
       startingBaselines: {
-        sleep: "About 7.5 hours on weekdays",
-        activity: "A short walk most days",
+        sleep: "About 7.5 hours, with an occasional shorter night",
+        activity: "Walks most days, with a few longer sessions",
         nutrition: "Three meals, logged as samples",
         recovery: "Energy usually around 6 or 7",
       },
@@ -143,8 +156,8 @@ export function createDemoData(now = new Date()): DemoData {
       onboardingComplete: true,
       onboardingStep: 14,
       context: { travel: false, illness: false, unusualSchedule: false, menstrualNoted: false },
-      todayEnergy: 7,
-      todayStress: 4,
+      todayEnergy: current?.energy ?? 6,
+      todayStress: current?.stress ?? 4,
       todayCommitment: null,
       adherence: [],
       snoozedBehaviorIds: [],
@@ -163,16 +176,8 @@ export function createDemoData(now = new Date()): DemoData {
     workouts,
     recovery,
     cycle: {
-      consent: { enabled: 1, typical_length_days: 28, variability: "Fairly regular", life_context: "Sample context. This is not a medical record." },
-      entries: [{
-        id: "demo-cycle-1",
-        logged_on: utcDay(-2, now),
-        kind: "note",
-        flow: null,
-        symptoms_json: "[]",
-        notes: "Sample note stored only in this browser.",
-        created_at: at(utcDay(-2, now), 9, 0),
-      }],
+      consent: null,
+      entries: [],
     },
     scoreHistory: [],
   };
