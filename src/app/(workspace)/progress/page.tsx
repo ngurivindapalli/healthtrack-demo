@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { BEHAVIOR_LIBRARY } from "@/lib/behaviors";
 import { Button, Card, Eyebrow, TextArea } from "@/components/ui";
+import { formatShortDate } from "@/lib/format";
 import { useDemo } from "@/lib/store";
 
 export default function ProgressPage() {
@@ -14,6 +15,15 @@ export default function ProgressPage() {
   const [saved, setSaved] = useState(false);
 
   const completed = state.adherence.filter((item) => item.kind === "completed");
+  const anchor = state.dataAsOf || state.reflection?.weekOf || "2026-10-16";
+  const monthPrefix = anchor.slice(0, 7);
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(
+    new Date(`${anchor.slice(0, 10)}T12:00:00Z`),
+  );
+  const monthCompleted = state.adherence.filter(
+    (item) => item.date.startsWith(monthPrefix) && item.kind === "completed",
+  ).length;
+  const weekOf = state.reflection?.weekOf;
   const byBehavior = BEHAVIOR_LIBRARY.map((behavior) => {
     const events = state.adherence.filter((item) => item.behaviorId === behavior.id);
     const assoc = model.associations.find((item) => item.behaviorId === behavior.id);
@@ -70,11 +80,11 @@ export default function ProgressPage() {
 
       <Card>
         <h2 className="text-base font-semibold">Weekly reflection</h2>
-        <p className="mt-1 text-xs text-muted">Week of Oct 12, 2026</p>
+        <p className="mt-1 text-xs text-muted">
+          {weekOf ? `Week of ${formatShortDate(weekOf)}, ${weekOf.slice(0, 4)}` : "Week of Oct 12, 2026"}
+        </p>
         <p className="mt-2 text-sm text-ink-soft">
-          October so far:{" "}
-          {state.adherence.filter((item) => item.date.startsWith("2026-10") && item.kind === "completed").length}{" "}
-          completed attempts in this sample history.
+          {monthName} so far: {monthCompleted} completed attempts in this sample history.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-sm">

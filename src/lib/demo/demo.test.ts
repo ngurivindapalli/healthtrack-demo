@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { assessDemoData, createDemoData } from "@/lib/demo/data";
 import { demoRuntime } from "@/lib/demo/config";
+import { allAssociations } from "@/lib/engines/associations";
+import type { AdherenceEvent, WeeklyReflection } from "@/lib/types";
 
 describe("demo mode", () => {
   it("stays off unless the variable is exactly true", () => {
@@ -47,6 +49,67 @@ describe("demo mode", () => {
     assert.equal(assessment.cycleAffectsScore, false);
     assert.equal(assessment.populationComparison.state, "unavailable");
     assert.ok((assessment.displayScore ?? 0) > 0);
+  });
+
+  it("records behavior attempts that match the same seven days", () => {
+    const data = createDemoData(new Date("2026-11-11T15:00:00.000Z"));
+    const observations = data.workspace.observations;
+    const adherence = data.workspace.adherence as AdherenceEvent[];
+    const reflection = data.workspace.reflection as WeeklyReflection;
+    const behaviors = ["normal-bedtime", "evening-walk", "earlier-dinner"];
+    assert.equal(adherence.length, observations.length * behaviors.length);
+    for (const row of observations) {
+      const bedtime = adherence.find((item) => item.date === row.date && item.behaviorId === "normal-bedtime");
+      const walk = adherence.find((item) => item.date === row.date && item.behaviorId === "evening-walk");
+      const dinner = adherence.find((item) => item.date === row.date && item.behaviorId === "earlier-dinner");
+      assert.equal(bedtime?.kind, (row.bedtimeMinutes ?? 0) <= 22 * 60 + 30 ? "completed" : "missed");
+      assert.equal(walk?.kind, (row.eveningWalkMinutes ?? 0) >= 20 ? "completed" : "missed");
+      assert.equal(dinner?.kind, (row.lastMealHour ?? 99) <= 19.5 ? "completed" : "missed");
+    }
+    const completed = (id: string) => adherence.filter((item) => item.behaviorId === id && item.kind === "completed").length;
+    const missed = (id: string) => adherence.filter((item) => item.behaviorId === id && item.kind === "missed").length;
+    assert.deepEqual([completed("normal-bedtime"), missed("normal-bedtime")], [4, 3]);
+    assert.deepEqual([completed("evening-walk"), missed("evening-walk")], [4, 3]);
+    assert.deepEqual([completed("earlier-dinner"), missed("earlier-dinner")], [6, 1]);
+    assert.equal(reflection.weekOf, "2026-11-09");
+    assert.equal(reflection.energy, 7);
+    assert.equal(reflection.stress, 4);
+    assert.match(reflection.note, /10:30 bedtime/);
+    assert.equal(
+      adherence.filter((item) => item.date.startsWith("2026-11") && item.kind === "completed").length,
+      14,
+    );
+  });
+
+  it("keeps association comparisons consistent with the stored week", () => {
+    const data = createDemoData(new Date("2026-11-11T15:00:00.000Z"));
+    const associations = allAssociations(data.workspace.observations);
+    const sleep = associations.find((item) => item.behaviorId === "normal-bedtime");
+    const walk = associations.find((item) => item.behaviorId === "evening-walk");
+    const dinner = associations.find((item) => item.behaviorId === "earlier-dinner");
+    assert.ok(sleep && walk && dinner);
+    if (!sleep || !walk || !dinner) return;
+    assert.equal(sleep.sampleSize, 5);
+    assert.ok(sleep.withBehavior > sleep.withoutBehavior);
+    assert.equal(sleep.direction, "uncertain");
+    assert.match(sleep.summary, /54 ms vs 52 ms/);
+    assert.equal(walk.sampleSize, 5);
+    assert.equal(walk.direction, "uncertain");
+    assert.match(walk.summary, /Not enough repeated personal observations/);
+    assert.equal(dinner.sampleSize, 0);
+    assert.match(dinner.summary, /still forming/);
+    for (const item of associations) {
+      assert.equal(Number.isFinite(item.withBehavior) && Number.isFinite(item.withoutBehavior), true);
+      assert.doesNotMatch(item.summary, /\d+\.\d{2,}/);
+      assert.equal(item.summary.includes("NaN"), false);
+    }
+    const before = assessDemoData(data);
+    const shifted = createDemoData(new Date("2026-11-18T15:00:00.000Z"));
+    const after = assessDemoData(shifted);
+    assert.equal(before.ok && after.ok, true);
+    if (!before.ok || !after.ok) return;
+    assert.equal(before.exactScore, after.exactScore);
+    assert.equal(before.algorithmVersion, "wellness-v1.0");
   });
 
   it("keeps a withdrawn cycle preference from changing the score input", () => {

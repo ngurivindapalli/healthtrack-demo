@@ -1,7 +1,7 @@
 import { circularMinuteDifference, scoreActivity, scoreNutrition, scoreRecovery, scoreSleep } from "@/lib/services/pillar-components";
 import { aggregateWellness, type WellnessAssessment } from "@/lib/services/wellness-score";
 import type { WorkspacePayload } from "@/lib/services/workspace";
-import type { DailyObservation, Profile, ScoringGoals } from "@/lib/types";
+import type { AdherenceEvent, DailyObservation, Profile, ScoringGoals, WeeklyReflection } from "@/lib/types";
 
 export type DemoLog = Record<string, unknown>;
 
@@ -58,11 +58,57 @@ const DEMO_WEEK: DemoDay[] = [
   { sleepHours: 7.42, bedtimeHour: 22, bedtimeMinute: 18, wakeHour: 5, wakeMinute: 43, steps: 7842, rhr: 67, hrv: 51, sleepEfficiency: 85, activeMinutes: 22, eveningWalkMinutes: 18, workoutMinutes: 20, workoutName: "Easy walk", energy: 6, stress: 4, fatigue: 3, soreness: 2, lastMealHour: 19, meals: [{ name: "Oatmeal", calories: 420, hour: 8, minute: 0 }, { name: "Chicken salad", calories: 640, hour: 12, minute: 30 }, { name: "Salmon and potatoes", calories: 680, hour: 19, minute: 0 }], drinks: [800, 1100] },
   { sleepHours: 8.08, bedtimeHour: 22, bedtimeMinute: 5, wakeHour: 6, wakeMinute: 10, steps: 9215, rhr: 65, hrv: 58, sleepEfficiency: 89, activeMinutes: 34, eveningWalkMinutes: 28, workoutMinutes: 32, workoutName: "Brisk walk", energy: 7, stress: 3, fatigue: 2, soreness: 2, lastMealHour: 18.5, meals: [{ name: "Eggs and toast", calories: 480, hour: 7, minute: 40 }, { name: "Rice and vegetables", calories: 720, hour: 12, minute: 45 }, { name: "Stir fry", calories: 780, hour: 18, minute: 30 }], drinks: [900, 1400] },
   { sleepHours: 6.67, bedtimeHour: 23, bedtimeMinute: 10, wakeHour: 5, wakeMinute: 50, steps: 5638, rhr: 70, hrv: 43, sleepEfficiency: 79, activeMinutes: 8, eveningWalkMinutes: 0, workoutMinutes: null, workoutName: null, energy: 5, stress: 6, fatigue: 5, soreness: 3, lastMealHour: 20.25, meals: [{ name: "Yogurt and fruit", calories: 380, hour: 8, minute: 20 }, { name: "Sandwich", calories: 540, hour: 13, minute: 0 }, { name: "Pizza and salad", calories: 700, hour: 20, minute: 15 }], drinks: [600, 900] },
-  { sleepHours: 7.83, bedtimeHour: 22, bedtimeMinute: 22, wakeHour: 6, wakeMinute: 12, steps: 10487, rhr: 64, hrv: 60, sleepEfficiency: 88, activeMinutes: 40, eveningWalkMinutes: 22, workoutMinutes: 38, workoutName: "Easy run", energy: 7, stress: 3, fatigue: 2, soreness: 4, lastMealHour: 19.25, meals: [{ name: "Oatmeal", calories: 510, hour: 7, minute: 50 }, { name: "Rice bowl", calories: 740, hour: 12, minute: 20 }, { name: "Chicken and rice", calories: 800, hour: 19, minute: 15 }], drinks: [1000, 1400] },
+  { sleepHours: 7.83, bedtimeHour: 22, bedtimeMinute: 22, wakeHour: 6, wakeMinute: 12, steps: 10487, rhr: 64, hrv: 52, sleepEfficiency: 88, activeMinutes: 40, eveningWalkMinutes: 22, workoutMinutes: 38, workoutName: "Easy run", energy: 7, stress: 3, fatigue: 2, soreness: 4, lastMealHour: 19.25, meals: [{ name: "Oatmeal", calories: 510, hour: 7, minute: 50 }, { name: "Rice bowl", calories: 740, hour: 12, minute: 20 }, { name: "Chicken and rice", calories: 800, hour: 19, minute: 15 }], drinks: [1000, 1400] },
   { sleepHours: 7.25, bedtimeHour: 22, bedtimeMinute: 48, wakeHour: 6, wakeMinute: 3, steps: 8326, rhr: 66, hrv: 54, sleepEfficiency: 84, activeMinutes: 28, eveningWalkMinutes: 20, workoutMinutes: 26, workoutName: "Easy walk", energy: 6, stress: 4, fatigue: 3, soreness: 2, lastMealHour: 18.75, meals: [{ name: "Eggs and toast", calories: 450, hour: 8, minute: 10 }, { name: "Turkey wrap", calories: 680, hour: 12, minute: 40 }, { name: "Bean chili", calories: 730, hour: 18, minute: 45 }], drinks: [850, 1150] },
   { sleepHours: 8.33, bedtimeHour: 21, bedtimeMinute: 55, wakeHour: 6, wakeMinute: 15, steps: 11204, rhr: 63, hrv: 63, sleepEfficiency: 91, activeMinutes: 46, eveningWalkMinutes: 32, workoutMinutes: 42, workoutName: "Long walk", energy: 8, stress: 3, fatigue: 2, soreness: 3, lastMealHour: 19.5, meals: [{ name: "Bagel and eggs", calories: 520, hour: 8, minute: 5 }, { name: "Pasta", calories: 760, hour: 13, minute: 10 }, { name: "Steak and vegetables", calories: 840, hour: 19, minute: 30 }], drinks: [1100, 1500] },
   { sleepHours: 7.58, bedtimeHour: 22, bedtimeMinute: 36, wakeHour: 6, wakeMinute: 11, steps: 7156, rhr: 67, hrv: 50, sleepEfficiency: 86, activeMinutes: 24, eveningWalkMinutes: 16, workoutMinutes: 22, workoutName: "Easy walk", energy: 6, stress: 4, fatigue: 3, soreness: 2, lastMealHour: 19, meals: [{ name: "Oatmeal", calories: 440, hour: 8, minute: 0 }, { name: "Soup and bread", calories: 660, hour: 12, minute: 30 }, { name: "Pasta and vegetables", calories: 710, hour: 19, minute: 0 }], drinks: [750, 1050] },
 ];
+
+const USUAL_BEDTIME_MINUTES = 22 * 60 + 30;
+const DINNER_DEADLINE_HOUR = 19.5;
+const WALK_MINUTES = 20;
+
+function weekMonday(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const utc = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, date ?? 1));
+  const weekday = utc.getUTCDay();
+  utc.setUTCDate(utc.getUTCDate() + (weekday === 0 ? -6 : 1 - weekday));
+  return utc.toISOString().slice(0, 10);
+}
+
+function behaviorHistory(days: string[]): AdherenceEvent[] {
+  return DEMO_WEEK.flatMap((day, index) => {
+    const date = days[index];
+    if (!date) return [];
+    const bedtime = day.bedtimeHour * 60 + day.bedtimeMinute;
+    const onTime = bedtime <= USUAL_BEDTIME_MINUTES;
+    const walked = day.eveningWalkMinutes >= WALK_MINUTES;
+    const dinnerOnTime = day.lastMealHour <= DINNER_DEADLINE_HOUR;
+    return [
+      {
+        id: `demo-bedtime-${index + 1}`,
+        date,
+        behaviorId: "normal-bedtime",
+        kind: onTime ? "completed" : "missed",
+        ...(onTime ? {} : { reason: "Later than 10:30 pm" }),
+      },
+      {
+        id: `demo-walk-${index + 1}`,
+        date,
+        behaviorId: "evening-walk",
+        kind: walked ? "completed" : "missed",
+        ...(walked ? {} : { reason: day.eveningWalkMinutes === 0 ? "No evening walk" : "Walk was under 20 minutes" }),
+      },
+      {
+        id: `demo-dinner-${index + 1}`,
+        date,
+        behaviorId: "earlier-dinner",
+        kind: dinnerOnTime ? "completed" : "missed",
+        ...(dinnerOnTime ? {} : { reason: "Dinner finished after 7:30 pm" }),
+      },
+    ];
+  });
+}
 
 export function createDemoData(now = new Date()): DemoData {
   const today = utcDay(0, now);
@@ -159,11 +205,17 @@ export function createDemoData(now = new Date()): DemoData {
       todayEnergy: current?.energy ?? 6,
       todayStress: current?.stress ?? 4,
       todayCommitment: null,
-      adherence: [],
+      adherence: behaviorHistory(days),
       snoozedBehaviorIds: [],
       declinedBehaviorIds: [],
       coachMessages: [],
-      reflection: null,
+      reflection: {
+        weekOf: weekMonday(today),
+        energy: 7,
+        stress: 4,
+        note: "Moderately positive. Sleep timing and walks were steadier on most days. The shorter night left some fatigue. Next week, keep the 10:30 bedtime.",
+        savedAt: at(today, 20, 30),
+      } satisfies WeeklyReflection,
       devices: [],
       observations,
       dataAsOf: today,
