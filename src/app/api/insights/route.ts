@@ -41,12 +41,20 @@ export async function POST(request: Request) {
   const brief = String(body.brief ?? "").slice(0, 4000);
   if (brief.length < 20) return apiError(400, "invalid_request", "Not enough measurements for daily insights.");
 
-  const result = await completeInsightRequest(brief, {
+  const env = {
     GROQ_API_KEY: process.env.GROQ_API_KEY,
     GROQ_MODEL: process.env.GROQ_MODEL,
-  });
+  };
+  const result = await completeInsightRequest(brief, env);
   if (!result.ok) return apiError(result.status, "insights_unavailable", UNAVAILABLE);
-  const insight = parseDailyInsight(result.content, brief);
+  let insight = parseDailyInsight(result.content, brief);
+  if (!insight) {
+    const retry = await completeInsightRequest(
+      `${brief}\n\nRewrite the JSON. Copy a quantity only when it already appears in the measurements. Do not round counts into thousands. Do not add a measurement that is not listed.`,
+      env,
+    );
+    if (retry.ok) insight = parseDailyInsight(retry.content, brief);
+  }
   if (!insight) return apiError(502, "insights_unavailable", UNAVAILABLE);
   return NextResponse.json({ insight });
 }

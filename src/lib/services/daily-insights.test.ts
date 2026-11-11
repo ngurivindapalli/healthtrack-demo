@@ -67,6 +67,16 @@ describe("daily wellness insights", () => {
       brief,
     );
     assert.equal(invented, null);
+    const rounded = parseDailyInsight(
+      JSON.stringify({
+        overall: "Steps peaked above 11 k on the strongest day.",
+        goingWell: "Sleep showed up on the completed nights.",
+        attention: "Nothing sharp stands out in the available data.",
+        tryToday: "Keep the usual bedtime tonight.",
+      }),
+      brief,
+    );
+    assert.equal(rounded, null);
     const markdown = parseDailyInsight(
       '{"overall":"**Sleep** looked steady over the recorded nights.","goingWell":"Activity showed up on most of the completed days.","attention":"Nothing sharp stands out in the available data.","tryToday":"Keep tonight close to your usual bedtime."}',
       brief,
@@ -136,6 +146,7 @@ describe("daily wellness insights", () => {
     assert.match(route, /insights:\$\{user\.id\}/);
     assert.match(route, /demoRuntime\(\) !== "on"/);
     assert.equal(route.includes("coachMessages"), false);
+    assert.match(route, /Do not round counts into thousands/);
     assert.equal(page.includes("GROQ_API_KEY"), false);
     assert.equal(page.includes("coachMessages"), false);
     const empty: DailyObservation[] = [];

@@ -121,8 +121,10 @@ export function parseDailyInsight(raw: string, brief: string): DailyInsight | nu
     if (prose.includes("**")) return null;
     insight[field] = prose;
   }
+  const prose = Object.values(insight).join(" ");
+  if (/\d[\d,.]*\s*k\b/i.test(prose)) return null;
   const allowed = new Set(numbersIn(brief));
-  const used = numbersIn(Object.values(insight).join(" "));
+  const used = numbersIn(prose);
   if (used.some((number) => !allowed.has(number))) return null;
   return insight;
 }

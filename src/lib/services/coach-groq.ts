@@ -206,7 +206,9 @@ Avoid describing a user's health as definitively good or bad.
 
 Focus on daily wellness habits and patterns rather than medical conclusions.
 
-Return only a JSON object with the keys overall, goingWell, attention, and tryToday. Each value is one or two plain sentences.`;
+Return only a JSON object with the keys overall, goingWell, attention, and tryToday. Each value is one or two plain sentences.
+
+Do not round a count into thousands. If you mention a quantity, copy it from the measurements. Describe a change only when later completed days are clearly higher or lower than earlier days. If the values move both ways, say they varied.`;
 
 export async function completeInsightRequest(
   brief: string,
