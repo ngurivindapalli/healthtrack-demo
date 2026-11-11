@@ -167,7 +167,7 @@ export function downloadDemoExport() {
 export async function handleDemoFetch(request: Request): Promise<Response | null> {
   const url = new URL(request.url, typeof window === "undefined" ? "http://localhost" : window.location.origin);
   const path = url.pathname;
-  if (path === "/api/demo/session" || path === "/api/v1/config" || path === "/api/coach") return null;
+  if (path === "/api/demo/session" || path === "/api/v1/config" || path === "/api/coach" || path === "/api/insights") return null;
   if (!path.startsWith("/api/")) return null;
   const data = loadDemoData();
   const method = request.method.toUpperCase();

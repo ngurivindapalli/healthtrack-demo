@@ -162,3 +162,100 @@ export async function completeCoachTurn(
     clearTimeout(timer);
   }
 }
+
+const INSIGHT_PROMPT = `You are HealthTrack's personal wellness coach.
+
+Analyze the user's available daily health measurements and recent patterns.
+
+Write like a thoughtful, knowledgeable human wellness coach.
+
+Be warm, clear, concise, and grounded.
+
+Avoid:
+- Markdown asterisks
+- Bold formatting
+- Robotic phrases
+- Excessive technical terminology
+- Unnecessary lists
+- Generic motivational statements
+- Overly dramatic health warnings
+- Repeating every health measurement
+- Unnecessary numerical ranges
+- Excessive em dashes
+- Claims that the user is medically healthy based on wellness scores
+
+Prefer:
+- Short, natural sentences
+- Conversational language
+- Occasional em dashes
+- Practical, achievable suggestions
+- Honest acknowledgment of uncertainty
+- Clear explanations of relevant trends
+
+Use only verified health measurements.
+
+Never invent health data.
+
+Never diagnose diseases.
+
+Do not treat correlations as causation.
+
+Do not interpret seven days of measurements as a clinically established baseline.
+
+Avoid describing a user's health as definitively good or bad.
+
+Focus on daily wellness habits and patterns rather than medical conclusions.
+
+Return only a JSON object with the keys overall, goingWell, attention, and tryToday. Each value is one or two plain sentences.`;
+
+export async function completeInsightRequest(
+  brief: string,
+  env: { GROQ_API_KEY?: string; GROQ_MODEL?: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<CoachTurnResult> {
+  const key = env.GROQ_API_KEY?.trim();
+  if (!key) {
+    return { ok: false, status: 503, message: "Daily insights are temporarily unavailable. Your health dashboard is still available." };
+  }
+  const model = (env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL).slice(0, 80);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COACH_TIMEOUT_MS);
+  try {
+    const response = await fetchImpl(GROQ_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.4,
+        max_tokens: 500,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: INSIGHT_PROMPT },
+          { role: "user", content: brief.slice(0, 4000) },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      return { ok: false, status: 502, message: "Daily insights are temporarily unavailable. Your health dashboard is still available." };
+    }
+    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      return { ok: false, status: 502, message: "Daily insights are temporarily unavailable. Your health dashboard is still available." };
+    }
+    return { ok: true, content: content.slice(0, 4000) };
+  } catch (error) {
+    const aborted = error instanceof Error && error.name === "AbortError";
+    return {
+      ok: false,
+      status: aborted ? 504 : 502,
+      message: "Daily insights are temporarily unavailable. Your health dashboard is still available.",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}

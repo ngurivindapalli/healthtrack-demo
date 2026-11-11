@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "npx --yes tsx --test src/lib/services/health-data.test.ts src/lib/services/v2-trackers.test.ts src/lib/services/production-readiness.test.ts src/lib/demo/demo.test.ts src/lib/services/coach-groq.test.ts src/components/wellness-panel.test.tsx",
+    "test": "npx --yes tsx --test src/lib/services/health-data.test.ts src/lib/services/v2-trackers.test.ts src/lib/services/production-readiness.test.ts src/lib/demo/demo.test.ts src/lib/services/coach-groq.test.ts src/lib/services/daily-insights.test.ts src/components/wellness-panel.test.tsx",
     "db:migrate": "npx --yes tsx src/db/cli.ts"
   },
   "dependencies": {

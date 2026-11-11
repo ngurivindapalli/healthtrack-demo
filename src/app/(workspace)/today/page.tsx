@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, ChevronRight, Smartphone } from "lucide-react";
 import { DataFreshnessBar } from "@/components/data-freshness";
 import { WellnessPanel } from "@/components/wellness-panel";
+import { DailyInsightsCard } from "@/components/daily-insights";
 import { DeclinePrompt } from "@/components/decline-prompt";
 import { StatusBadge } from "@/components/status-badge";
 import { Sparkline } from "@/components/sparkline";
@@ -48,6 +49,8 @@ export default function TodayPage() {
       </header>
 
       <WellnessPanel />
+
+      <DailyInsightsCard />
 
       <DataFreshnessBar />
 

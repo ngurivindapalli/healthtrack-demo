@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
     return new NextResponse("Demo Mode is disabled on production deployments.", { status: 503 });
   }
   const { pathname } = request.nextUrl;
-  if (runtime === "on" && pathname.startsWith("/api/") && pathname !== "/api/demo" && pathname !== "/api/demo/session" && pathname !== "/api/v1/config" && pathname !== "/api/coach") {
+  if (runtime === "on" && pathname.startsWith("/api/") && pathname !== "/api/demo" && pathname !== "/api/demo/session" && pathname !== "/api/v1/config" && pathname !== "/api/coach" && pathname !== "/api/insights") {
     const headers = new Headers(request.headers);
     headers.set("x-healthtrack-demo-path", `${pathname}${request.nextUrl.search}`);
     return finish(NextResponse.rewrite(new URL("/api/demo", request.url), { request: { headers } }));
