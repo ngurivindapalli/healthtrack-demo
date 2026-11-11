@@ -71,9 +71,19 @@ export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 export const COACH_TIMEOUT_MS = 12_000;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+export type InsightFailureCategory =
+  | "provider_error"
+  | "provider_rate_limit"
+  | "provider_timeout"
+  | "invalid_json"
+  | "schema_validation_failed"
+  | "unsupported_measurement"
+  | "authentication_failed"
+  | "application_rate_limit";
+
 export type CoachTurnResult =
   | { ok: true; content: string }
-  | { ok: false; status: number; message: string };
+  | { ok: false; status: number; message: string; category?: InsightFailureCategory };
 
 export function sanitizeHistory(input: unknown): Array<{ role: "user" | "assistant"; content: string }> {
   if (!Array.isArray(input)) return [];
@@ -216,9 +226,8 @@ export async function completeInsightRequest(
   fetchImpl: typeof fetch = fetch,
 ): Promise<CoachTurnResult> {
   const key = env.GROQ_API_KEY?.trim();
-  if (!key) {
-    return { ok: false, status: 503, message: "Daily insights are temporarily unavailable. Your health dashboard is still available." };
-  }
+  const unavailable = "Daily insights are temporarily unavailable. Your health dashboard is still available.";
+  if (!key) return { ok: false, status: 503, message: unavailable, category: "provider_error" };
   const model = (env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL).slice(0, 80);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), COACH_TIMEOUT_MS);
@@ -233,7 +242,9 @@ export async function completeInsightRequest(
       body: JSON.stringify({
         model,
         temperature: 0.4,
-        max_tokens: 500,
+        max_completion_tokens: 1200,
+        reasoning_effort: "low",
+        include_reasoning: false,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: INSIGHT_PROMPT },
@@ -242,20 +253,20 @@ export async function completeInsightRequest(
       }),
     });
     if (!response.ok) {
-      return { ok: false, status: 502, message: "Daily insights are temporarily unavailable. Your health dashboard is still available." };
+      const category = response.status === 429 ? "provider_rate_limit" : "provider_error";
+      return { ok: false, status: 502, message: unavailable, category };
     }
     const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
     const content = data.choices?.[0]?.message?.content?.trim();
-    if (!content) {
-      return { ok: false, status: 502, message: "Daily insights are temporarily unavailable. Your health dashboard is still available." };
-    }
+    if (!content) return { ok: false, status: 502, message: unavailable, category: "invalid_json" };
     return { ok: true, content: content.slice(0, 4000) };
   } catch (error) {
     const aborted = error instanceof Error && error.name === "AbortError";
     return {
       ok: false,
       status: aborted ? 504 : 502,
-      message: "Daily insights are temporarily unavailable. Your health dashboard is still available.",
+      message: unavailable,
+      category: aborted ? "provider_timeout" : "provider_error",
     };
   } finally {
     clearTimeout(timer);

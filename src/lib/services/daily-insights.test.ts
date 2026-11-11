@@ -9,6 +9,7 @@ import {
   buildInsightBrief,
   hasInsightMeasurements,
   insightFingerprint,
+  insightIssue,
   insightsPaused,
   matchInsightCache,
   parseDailyInsight,
@@ -76,7 +77,22 @@ describe("daily wellness insights", () => {
       }),
       brief,
     );
-    assert.equal(rounded, null);
+    assert.equal(rounded?.overall.includes("11"), true);
+    const unsupportedRound = parseDailyInsight(
+      JSON.stringify({
+        overall: "Steps peaked above 11 k on the strongest day.",
+        goingWell: "Sleep showed up on the completed nights.",
+        attention: "Nothing sharp stands out in the available data.",
+        tryToday: "Keep the usual bedtime tonight.",
+      }),
+      "Sleep 7h 35m and resting heart rate 67 bpm are recorded.",
+    );
+    assert.equal(unsupportedRound, null);
+    assert.equal(insightIssue("not json", brief), "invalid_json");
+    assert.equal(
+      insightIssue('{"overall":"Sleep looked steady over the recorded nights."}', brief),
+      "schema_validation_failed",
+    );
     const markdown = parseDailyInsight(
       '{"overall":"**Sleep** looked steady over the recorded nights.","goingWell":"Activity showed up on most of the completed days.","attention":"Nothing sharp stands out in the available data.","tryToday":"Keep tonight close to your usual bedtime."}',
       brief,
@@ -134,9 +150,29 @@ describe("daily wellness insights", () => {
     assert.equal(called, false);
     assert.equal(missing.ok, false);
     if (!missing.ok) assert.match(missing.message, /dashboard is still available/);
-    const failed = await completeInsightRequest("Sleep 7h 35m and steps 7156.", { GROQ_API_KEY: "test-key" }, async () => new Response("secret dump", { status: 500 }));
+    const failed = await completeInsightRequest("Sleep 7h 35m and steps 7156.", { GROQ_API_KEY: "test-key" }, async (_input, init) => {
+      const requestBody = JSON.parse(String(init?.body));
+      assert.equal(requestBody.reasoning_effort, "low");
+      assert.equal(requestBody.max_completion_tokens, 1200);
+      assert.equal(JSON.stringify(requestBody).includes("test-key"), false);
+      return new Response(JSON.stringify({ error: { message: "secret dump" } }), { status: 500 });
+    });
     assert.equal(failed.ok, false);
-    if (!failed.ok) assert.equal(failed.message.includes("secret dump"), false);
+    if (!failed.ok) {
+      assert.equal(failed.message.includes("secret dump"), false);
+      assert.equal(failed.category, "provider_error");
+    }
+    const limited = await completeInsightRequest("Sleep 7h 35m and steps 7156.", { GROQ_API_KEY: "test-key" }, async () => new Response("{}", { status: 429 }));
+    assert.equal(limited.ok, false);
+    if (!limited.ok) assert.equal(limited.category, "provider_rate_limit");
+    const empty = await completeInsightRequest("Sleep 7h 35m and steps 7156.", { GROQ_API_KEY: "test-key" }, async () => new Response(JSON.stringify({ choices: [{ message: { content: "" } }] })));
+    assert.equal(empty.ok, false);
+    if (!empty.ok) assert.equal(empty.category, "invalid_json");
+    const timedOut = await completeInsightRequest("Sleep 7h 35m and steps 7156.", { GROQ_API_KEY: "test-key" }, async () => {
+      throw Object.assign(new Error("aborted"), { name: "AbortError" });
+    });
+    assert.equal(timedOut.ok, false);
+    if (!timedOut.ok) assert.equal(timedOut.category, "provider_timeout");
   });
 
   it("keeps insight requests authenticated and separate from chat history", () => {
@@ -146,7 +182,9 @@ describe("daily wellness insights", () => {
     assert.match(route, /insights:\$\{user\.id\}/);
     assert.match(route, /demoRuntime\(\) !== "on"/);
     assert.equal(route.includes("coachMessages"), false);
-    assert.match(route, /Do not round counts into thousands/);
+    assert.match(route, /authentication_failed/);
+    assert.match(route, /application_rate_limit/);
+    assert.match(route, /reportInsight\(/);
     assert.equal(page.includes("GROQ_API_KEY"), false);
     assert.equal(page.includes("coachMessages"), false);
     const empty: DailyObservation[] = [];

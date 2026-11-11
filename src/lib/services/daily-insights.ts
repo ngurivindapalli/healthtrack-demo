@@ -95,37 +95,69 @@ export function buildInsightBrief(
   return lines.join("\n");
 }
 
-function numbersIn(text: string): string[] {
-  return text.match(/\d+(?:\.\d+)?/g) ?? [];
+export type InsightIssue = "invalid_json" | "schema_validation_failed" | "unsupported_measurement";
+
+function numericClaims(text: string): number[] {
+  const thousands = text.replace(/(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*k\b/gi, (_, raw: string) => {
+    const value = Number(raw.replace(/,/g, ""));
+    return Number.isFinite(value) ? String(value * 1000) : raw;
+  });
+  const plain = thousands.replace(/(\d),(?=\d{3}(?:\D|$))/g, "$1");
+  return (plain.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter((value) => Number.isFinite(value));
 }
 
-export function parseDailyInsight(raw: string, brief: string): DailyInsight | null {
+function measurementSupports(claimed: number, source: number): boolean {
+  if (Math.abs(claimed - source) < 0.051) return true;
+  if (source < 50) {
+    const tenth = Math.round(source * 10) / 10;
+    const nearest = Math.round(source);
+    return Math.abs(claimed - tenth) < 0.051 || (Math.abs(claimed - nearest) < 0.051 && Math.abs(source - nearest) <= 0.5);
+  }
+  const scale = source >= 1000 ? 1000 : source >= 100 ? 100 : 10;
+  const rounded = Math.round(source / scale) * scale;
+  return Math.abs(claimed - rounded) < 0.051 && Math.abs(claimed - source) <= Math.abs(source) * 0.1;
+}
+
+function unsupportedClaims(prose: string, brief: string): boolean {
+  const sources = numericClaims(brief);
+  return numericClaims(prose).some((claimed) => !sources.some((source) => measurementSupports(claimed, source)));
+}
+
+function readInsight(raw: string): DailyInsight | InsightIssue {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
+  if (start < 0 || end <= start) return "invalid_json";
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw.slice(start, end + 1));
   } catch {
-    return null;
+    return "invalid_json";
   }
-  if (!parsed || typeof parsed !== "object") return null;
+  if (!parsed || typeof parsed !== "object") return "invalid_json";
   const record = parsed as Record<string, unknown>;
   const fields = ["overall", "goingWell", "attention", "tryToday"] as const;
   const insight = {} as DailyInsight;
   for (const field of fields) {
     const value = record[field];
-    if (typeof value !== "string") return null;
+    if (typeof value !== "string") return "schema_validation_failed";
     const prose = presentCoachReply(value, "daily insight").replace(/\*\*/g, "").trim();
-    if (prose.length < 12 || prose.length > 420) return null;
-    if (prose.includes("**")) return null;
+    if (prose.length < 12 || prose.length > 420 || prose.includes("**")) return "schema_validation_failed";
     insight[field] = prose;
   }
-  const prose = Object.values(insight).join(" ");
-  if (/\d[\d,.]*\s*k\b/i.test(prose)) return null;
-  const allowed = new Set(numbersIn(brief));
-  const used = numbersIn(prose);
-  if (used.some((number) => !allowed.has(number))) return null;
+  return insight;
+}
+
+export function insightIssue(raw: string, brief: string): InsightIssue | null {
+  const insight = readInsight(raw);
+  if (typeof insight === "string") return insight;
+  if (unsupportedClaims(Object.values(insight).join(" "), brief)) return "unsupported_measurement";
+  return null;
+}
+
+export function parseDailyInsight(raw: string, brief: string): DailyInsight | null {
+  const insight = readInsight(raw);
+  if (typeof insight === "string") return null;
+  if (unsupportedClaims(Object.values(insight).join(" "), brief)) return null;
   return insight;
 }
 
